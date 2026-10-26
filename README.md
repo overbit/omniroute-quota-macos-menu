@@ -2,7 +2,7 @@
 
 A small, native **macOS 14+ menu-bar app** that shows the remaining quotas for every account connected to [OmniRoute](https://github.com/cheaper-inference/OmniRoute). Open the popover, check your session/weekly/daily limits and reset times, close it. No Dock icon, server supervision, analytics, or extra runtime.
 
-The interface follows the compact, dark account list shown in the project reference: one row per account, colored quota bars, and short reset countdowns. The menu-bar icon signals when any active, measurable quota drops below 20%.
+The interface follows the compact, dark account list shown in the project reference: one row per account, colored quota bars, and short reset countdowns. The official OmniRoute menu-bar icon signals when any active, measurable quota drops below 20%. The app bundle uses OmniRoute's original macOS icon; provider logos come from your local OmniRoute server when available.
 
 ## Install
 
@@ -19,7 +19,7 @@ open dist/OmniRouteQuota.app
 ## Connect
 
 1. Run OmniRoute on the same Mac (default `http://127.0.0.1:20128`). The app **does not start or stop** the OmniRoute server.
-2. Click the chart icon in the menu bar. Active accounts and quota windows appear automatically. In **Settings**, switch on **Show disabled accounts** to include inactive connections and their last cached quotas.
+2. Click the OmniRoute icon in the menu bar. Active accounts and quota windows appear automatically. In **Settings**, switch on **Show disabled accounts** to include inactive connections and their last cached quotas.
 3. If your server uses custom auth or a different port, click **Settings**. Enter the local address, an optional management API key override, or an optional CLI token override. Overrides are stored in macOS Keychain.
 
 For the usual local OmniRoute setup, the app can derive the CLI management token from the Mac's platform UUID and OmniRoute's `~/.omniroute/cli-token-salt.json` (as OmniRoute itself does). When the management API-key override is empty, it reads only `OMNIROUTE_API_KEY` from `~/.omniroute/.env` on each refresh. The `.env` value is not displayed, logged, or copied into Keychain. A manual API-key override takes precedence. Other provider credentials in `.env` are not used. If the server has a custom `OMNIROUTE_CLI_TOKEN` or `OMNIROUTE_CLI_SALT`, paste an authorized token into Settings. The server address is constrained to `localhost`, `127.0.0.1`, or `::1` to prevent accidentally sending management credentials to a remote host.
@@ -39,3 +39,6 @@ No analytics, telemetry, or external network requests are made by this app. The 
 The project uses Swift Package Manager without third-party dependencies. `QuotaCore` contains the API client, quota parsing, and percentage/countdown logic, with XCTest coverage. `OmniRouteQuota` contains SwiftUI, Keychain integration, local CLI token derivation, and the menu-bar popover. Tests can run on Linux; the actual native app must be compiled on macOS.
 
 This is an independent companion app, not an official OmniRoute product.
+## Artwork
+
+The packaged application reuses the official OmniRoute desktop (`icon.icns`, `icon.png`) and menu-bar (`tray-icon.png`) images from `electron/assets/` in [cheaper-inference/OmniRoute](https://github.com/cheaper-inference/OmniRoute). Their license notice is preserved in `Assets/OmniRoute/LICENSE`. Provider icons are requested only from your running local OmniRoute server at `/providers/{id}.svg`; if no matching image is available, a compact monogram is used. This companion app is not affiliated with or endorsed by OmniRoute.

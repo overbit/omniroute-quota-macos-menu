@@ -16,6 +16,11 @@ APP="$DEST/OmniRouteQuota.app"
 mkdir -p "$APP/Contents/MacOS"
 cp "$BIN" "$APP/Contents/MacOS/OmniRouteQuota"
 chmod +x "$APP/Contents/MacOS/OmniRouteQuota"
+mkdir -p "$APP/Contents/Resources"
+# OmniRoute's original desktop and tray artwork (see Assets/OmniRoute/LICENSE).
+cp "$ROOT/Assets/OmniRoute/icon.icns" "$APP/Contents/Resources/icon.icns"
+cp "$ROOT/Assets/OmniRoute/icon.png" "$APP/Contents/Resources/icon.png"
+cp "$ROOT/Assets/OmniRoute/tray-icon.png" "$APP/Contents/Resources/tray-icon.png"
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -24,6 +29,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleDisplayName</key><string>OmniRoute Quotas</string>
   <key>CFBundleIdentifier</key><string>com.overbit.OmniRouteQuota</string>
   <key>CFBundleExecutable</key><string>OmniRouteQuota</string>
+  <key>CFBundleIconFile</key><string>icon.icns</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
   <key>CFBundleVersion</key><string>1</string>

@@ -49,13 +49,20 @@ struct PopoverView: View {
 
     private var header: some View {
         HStack(spacing: 10) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 9).fill(Palette.green.opacity(0.12))
-                Image(systemName: "chart.bar.fill")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Palette.green)
+            Group {
+                if let icon = OmniRouteArtwork.header {
+                    Image(nsImage: icon)
+                        .resizable()
+                        .interpolation(.high)
+                        .scaledToFit()
+                        .padding(5)
+                } else {
+                    Image(systemName: "circle.hexagongrid.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                }
             }
             .frame(width: 31, height: 31)
+            .background(Palette.track, in: RoundedRectangle(cornerRadius: 9))
             VStack(alignment: .leading, spacing: 1) {
                 Text("OmniRoute")
                     .font(.system(size: 15, weight: .semibold))
@@ -116,7 +123,7 @@ struct PopoverView: View {
                                     .frame(height: 1)
                                     .padding(.leading, 49)
                             }
-                            AccountRow(account: account)
+                            AccountRow(account: account, address: store.address)
                         }
                     }
                     .padding(.horizontal, 17)
@@ -220,11 +227,13 @@ struct PopoverView: View {
 
 private struct AccountRow: View {
     let account: QuotaAccount
+    let address: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 9) {
-                ProviderMark(provider: account.providerName)
+                ProviderMark(providerID: account.provider, providerName: account.providerName,
+                             address: address)
                 Text(account.name)
                     .font(.system(size: 12.5, weight: .semibold))
                     .lineLimit(1)
@@ -264,37 +273,31 @@ private struct AccountRow: View {
 }
 
 private struct ProviderMark: View {
-    let provider: String
-
-    private var symbol: String {
-        switch provider {
-        case "OpenAI": "circle.hexagongrid.fill"
-        case "Anthropic": "asterisk"
-        case "Antigravity": "a.circle.fill"
-        case "Kimi": "sparkle"
-        case "OpenCode": "curlybraces"
-        default: "square.grid.2x2.fill"
-        }
-    }
-
-    private var tint: Color {
-        switch provider {
-        case "OpenAI": Color(red: 0.24, green: 0.80, blue: 0.63)
-        case "Anthropic": Color(red: 0.88, green: 0.71, blue: 0.58)
-        case "Antigravity": Color(red: 0.87, green: 0.76, blue: 0.39)
-        case "Kimi": Color(red: 0.53, green: 0.67, blue: 1.0)
-        case "OpenCode": Color(red: 0.73, green: 0.63, blue: 1.0)
-        default: Palette.muted
-        }
-    }
+    let providerID: String
+    let providerName: String
+    let address: String
+    @State private var icon: NSImage?
 
     var body: some View {
-        Image(systemName: symbol)
-            .font(.system(size: 14, weight: .medium))
-            .foregroundStyle(tint)
-            .frame(width: 24, height: 24)
-            .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 7))
-            .accessibilityLabel(provider)
+        Group {
+            if let icon {
+                Image(nsImage: icon)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+                    .padding(3)
+            } else {
+                Text(String(providerName.prefix(1)).uppercased())
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Palette.foreground)
+            }
+        }
+        .frame(width: 25, height: 25)
+        .background(Palette.track, in: RoundedRectangle(cornerRadius: 7))
+        .accessibilityHidden(true)
+        .task(id: "\(address)|\(providerID)") {
+            icon = await OmniRouteArtwork.providerIcon(providerID, server: address)
+        }
     }
 }
 

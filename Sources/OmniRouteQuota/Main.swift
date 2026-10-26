@@ -9,9 +9,23 @@ struct OmniRouteQuotaApp: App {
         MenuBarExtra {
             PopoverView(store: store)
         } label: {
-            Image(systemName: store.lowestRemaining.map { $0 < 20 } == true
-                  ? "exclamationmark.triangle.fill" : "chart.bar.fill")
-                .accessibilityLabel("OmniRoute quotas")
+            HStack(spacing: 3) {
+                if let icon = OmniRouteArtwork.statusBar {
+                    Image(nsImage: icon)
+                        .resizable()
+                        .renderingMode(.template)
+                        .interpolation(.high)
+                        .frame(width: 18, height: 18)
+                } else {
+                    Image(systemName: "circle.hexagongrid.fill")
+                }
+                if store.lowestRemaining.map({ $0 < 20 }) == true {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.red)
+                }
+            }
+            .accessibilityLabel("OmniRoute quotas")
         }
         .menuBarExtraStyle(.window)
     }
