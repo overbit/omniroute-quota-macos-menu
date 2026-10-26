@@ -76,10 +76,16 @@ OmniRouteTray's Tauri runtime, server supervision, update manager, trends, or co
   clearly marked OFF; stale readings get an independent warning.
 - Header/footer remain fixed while usage scrolls. VoiceOver labels name each
   quota window and percentage. Offline and empty states have retry/recovery.
-- The footer's refresh button explicitly reloads **OmniRoute's server-side
-  cached** quotas, not provider endpoints. It shows a spinner while requesting
-  data, then displays the last successful `Checked HH:mm` timestamp or a
-  `Refresh failed` message. The HTTP request bypasses URLSession's own cache.
+- The footer's **manual** Refresh button performs a live quota sync: OmniRoute's
+  bulk POST covers enabled accounts and its individual usage GET covers each
+  disabled connection. Disabled accounts retain their disabled routing state.
+  The per-connection probes are serialized, with an inter-request delay to
+  avoid upstream bursts. Once complete, the UI reloads the entire server cache.
+  Partial failures show a warning without treating the server as offline.
+  Unsupported/no-quota accounts remain unavailable rather than invented at 100%.
+- Automatic 60-second refreshes remain GET-only cache reads; merely opening
+  the popover never starts upstream quota probes. Refresh uses a progress indicator
+  and a last-check timestamp or failure status. HTTP cache is bypassed locally.
 - The independent app uses only local OmniRoute API data; features such as
   OmniRouteTray's cache hit-rate and server version are intentionally omitted
   unless those facts can be retrieved reliably.
