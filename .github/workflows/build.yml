@@ -33,9 +33,9 @@ jobs:
               }
           }
           '
-      - name: Upload app archive
+      - name: Upload ad-hoc test archive (not notarized)
         uses: actions/upload-artifact@v4
         with:
-          name: OmniRouteQuota-macos
+          name: OmniRouteQuota-UNNOTARIZED-test-build
           path: dist/OmniRouteQuota-macos.zip
           if-no-files-found: error
