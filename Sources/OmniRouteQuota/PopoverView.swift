@@ -35,7 +35,7 @@ struct PopoverView: View {
                 return part + 21 + CGFloat(count * 15) + CGFloat(max(0, count - 1)) * 3
             } + CGFloat(max(0, group.accounts.count - 1)) * 6 + 8
         }
-        let warningHeight: CGFloat = store.errorMessage == nil ? 0 : 21
+        let warningHeight: CGFloat = (store.errorMessage == nil && store.refreshWarning == nil) ? 0 : 21
         return min(425, max(130, 55 + rowHeight + warningHeight))
     }
 
@@ -144,6 +144,12 @@ struct PopoverView: View {
                     .foregroundStyle(TrayPalette.warning)
                     .padding(.bottom, 7)
                     .help(store.errorMessage ?? "")
+            } else if let warning = store.refreshWarning {
+                Label("Some account quotas could not refresh", systemImage: "exclamationmark.triangle.fill")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(TrayPalette.warning)
+                    .padding(.bottom, 7)
+                    .help(warning)
             }
 
             if store.accounts.isEmpty && store.lastUpdated == nil {
@@ -211,10 +217,12 @@ struct PopoverView: View {
         HStack(spacing: 6) {
             Text(footerRefreshLabel)
                 .font(.system(size: 10.5))
-                .foregroundStyle(store.errorMessage == nil ? TrayPalette.faint : TrayPalette.warning)
+                .foregroundStyle(store.errorMessage == nil && store.refreshWarning == nil
+                                 ? TrayPalette.faint : TrayPalette.warning)
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
-                .help(store.errorMessage ?? "Last successful read from OmniRoute's quota cache")
+                .help(store.errorMessage ?? store.refreshWarning ??
+                      "Last successful quota check from OmniRoute")
 
             Button { store.openDashboard() } label: {
                 Text(":\(serverPort)")
@@ -233,11 +241,14 @@ struct PopoverView: View {
                     .controlSize(.small)
                     .tint(TrayPalette.muted)
                     .frame(width: 24, height: 24)
-                    .help("Reading OmniRoute's cached quotas…")
-                    .accessibilityLabel("Refreshing cached quotas")
+                    .help(store.forcingRefresh
+                          ? "Refreshing live quotas for enabled and disabled accounts…"
+                          : "Reading OmniRoute's cached quotas…")
+                    .accessibilityLabel(store.forcingRefresh
+                                        ? "Refreshing all account quotas" : "Checking cached quotas")
             } else {
-                footerButton("arrow.clockwise", "Reload cached quotas") {
-                    Task { await store.refresh() }
+                footerButton("arrow.clockwise", "Refresh all account quotas, including disabled") {
+                    Task { await store.refresh(force: true) }
                 }
             }
             footerButton("arrow.up.right.square", "Open OmniRoute") { store.openDashboard() }
@@ -251,6 +262,7 @@ struct PopoverView: View {
     private var footerRefreshLabel: String {
         if store.refreshing { return "Refreshing…" }
         if store.errorMessage != nil { return "Refresh failed" }
+        if store.refreshWarning != nil { return "Partial refresh" }
         if let lastUpdated = store.lastUpdated {
             return "Checked \(lastUpdated.formatted(date: .omitted, time: .shortened))"
         }

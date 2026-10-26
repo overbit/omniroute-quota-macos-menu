@@ -7,6 +7,8 @@ import SwiftUI
 final class QuotaStore: ObservableObject {
     @Published private(set) var accounts: [QuotaAccount] = []
     @Published private(set) var refreshing = false
+    @Published private(set) var forcingRefresh = false
+    @Published private(set) var refreshWarning: String?
     @Published private(set) var lastUpdated: Date?
     @Published private(set) var errorMessage: String?
     @Published var showingSettings = false
@@ -70,20 +72,36 @@ final class QuotaStore: ObservableObject {
         }
     }
 
-    func refresh() async {
+    func refresh(force: Bool = false) async {
         guard !refreshing else { return }
         refreshing = true
-        defer { refreshing = false }
+        forcingRefresh = force
+        defer {
+            refreshing = false
+            forcingRefresh = false
+        }
         do {
             let endpoint = try OmniRouteEndpoint(address)
             let credentials = OmniRouteCredentials(
                 apiKey: apiKey.isEmpty ? LocalCredentials.automaticAPIKey() : apiKey,
                 cliToken: tokenOverride.isEmpty ? LocalCredentials.automaticToken() : tokenOverride)
-            let result = try await client.load(from: endpoint, credentials: credentials)
-            accounts = result
+
+            if force {
+                // Only the explicit Refresh button triggers upstream quota probes.
+                // The server's bulk refresh skips disabled accounts, so refresh
+                // those via the individual endpoint before reading the new cache.
+                let result = try await client.refreshAll(from: endpoint, credentials: credentials)
+                accounts = result.accounts
+                refreshWarning = result.warning
+            } else {
+                // Cheap polling always reads cached quotas, including disabled
+                // accounts previously refreshed by an explicit user action.
+                accounts = try await client.load(from: endpoint, credentials: credentials)
+            }
             lastUpdated = Date()
             errorMessage = nil
         } catch {
+            if force { refreshWarning = nil }
             errorMessage = error.localizedDescription
         }
     }
