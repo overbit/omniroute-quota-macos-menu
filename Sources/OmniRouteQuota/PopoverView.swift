@@ -209,10 +209,12 @@ struct PopoverView: View {
 
     private var footer: some View {
         HStack(spacing: 6) {
-            Text("OmniRoute")
+            Text(footerRefreshLabel)
                 .font(.system(size: 10.5))
-                .foregroundStyle(TrayPalette.faint)
+                .foregroundStyle(store.errorMessage == nil ? TrayPalette.faint : TrayPalette.warning)
                 .lineLimit(1)
+                .minimumScaleFactor(0.85)
+                .help(store.errorMessage ?? "Last successful read from OmniRoute's quota cache")
 
             Button { store.openDashboard() } label: {
                 Text(":\(serverPort)")
@@ -226,14 +228,33 @@ struct PopoverView: View {
             .buttonStyle(.plain)
             .help("Open OmniRoute")
             Spacer(minLength: 2)
-            footerButton("arrow.clockwise", "Refresh quotas") { Task { await store.refresh() } }
-                .disabled(store.refreshing)
+            if store.refreshing {
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(TrayPalette.muted)
+                    .frame(width: 24, height: 24)
+                    .help("Reading OmniRoute's cached quotas…")
+                    .accessibilityLabel("Refreshing cached quotas")
+            } else {
+                footerButton("arrow.clockwise", "Reload cached quotas") {
+                    Task { await store.refresh() }
+                }
+            }
             footerButton("arrow.up.right.square", "Open OmniRoute") { store.openDashboard() }
             footerButton("gearshape", "Settings") { store.showingSettings = true }
         }
         .padding(.leading, 13)
         .padding(.trailing, 9)
         .padding(.vertical, 5)
+    }
+
+    private var footerRefreshLabel: String {
+        if store.refreshing { return "Refreshing…" }
+        if store.errorMessage != nil { return "Refresh failed" }
+        if let lastUpdated = store.lastUpdated {
+            return "Checked \(lastUpdated.formatted(date: .omitted, time: .shortened))"
+        }
+        return "OmniRoute"
     }
 
     private var serverPort: String {

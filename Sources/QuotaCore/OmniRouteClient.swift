@@ -49,6 +49,9 @@ public struct OmniRouteClient {
     public func makeRequest(_ url: URL, credentials: OmniRouteCredentials) -> URLRequest {
         var request = URLRequest(url: url)
         request.timeoutInterval = 8
+        // Re-read OmniRoute's server-side quota cache on each click/poll. An
+        // ephemeral URLSession can still keep its own HTTP cache in memory.
+        request.cachePolicy = .reloadIgnoringLocalCacheData
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if !credentials.apiKey.isEmpty { request.setValue("Bearer \(credentials.apiKey)", forHTTPHeaderField: "Authorization") }
         if !credentials.cliToken.isEmpty { request.setValue(credentials.cliToken, forHTTPHeaderField: "x-omniroute-cli-token") }

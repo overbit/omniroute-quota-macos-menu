@@ -54,6 +54,7 @@ final class QuotaCoreTests: XCTestCase {
         let req = client.makeRequest(try OmniRouteEndpoint("127.0.0.1:20128").url(for: "api/providers"), credentials: .init(apiKey: "sk-test", cliToken: "token"))
         XCTAssertEqual(req.value(forHTTPHeaderField: "Authorization"), "Bearer sk-test")
         XCTAssertEqual(req.value(forHTTPHeaderField: "x-omniroute-cli-token"), "token")
+        XCTAssertEqual(req.cachePolicy, .reloadIgnoringLocalCacheData)
     }
 
     func testDisabledAccountsAreOptionalWithoutLosingCachedQuotas() throws {
