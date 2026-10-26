@@ -24,8 +24,18 @@ enum OmniRouteArtwork {
     /// Provider SVGs are served by the running local OmniRoute dashboard. On
     /// macOS 14+ NSImage can render them; unsupported SVGs use a letter badge.
     static func providerIcon(_ providerID: String, server: String) async -> NSImage? {
-        guard let endpoint = try? OmniRouteEndpoint(server),
-              let asset = assetName(for: providerID) else { return nil }
+        guard let asset = assetName(for: providerID) else { return nil }
+        // Bundle the same essential marks as OmniRouteTray. Offline and custom
+        // installations should still show real provider icons, not monograms.
+        let localKey = "bundled:\(asset)"
+        if let cached = cache[localKey] { return cached }
+        if let file = Bundle.main.url(forResource: asset, withExtension: "svg", subdirectory: "providers"),
+           let image = NSImage(contentsOf: file), image.isValid {
+            cache[localKey] = image
+            return image
+        }
+
+        guard let endpoint = try? OmniRouteEndpoint(server) else { return nil }
         let url = endpoint.url(for: "providers/\(asset).svg")
         let cacheKey = url.absoluteString
         if let cached = cache[cacheKey] { return cached }
@@ -50,10 +60,11 @@ enum OmniRouteArtwork {
         }
         let alias: String
         switch lower {
-        case "openai-codex": alias = "codex"
-        case "kimi-coding", "kimi-web", "moonshot": alias = "kimi-logomark-dark"
-        case "claude-code": alias = "claude"
-        case "opencode-go", "opencode-zen": return nil // No licensed local SVG in OmniRoute.
+        case "openai", "openai-codex", "codex": alias = "codex"
+        case "anthropic", "claude", "claude-code": alias = "claude"
+        case "kimi", "kimi-coding", "kimi-web", "moonshot": alias = "kimi"
+        case "opencode", "opencode-go", "opencode-zen": alias = "opencode"
+        case "github", "github-copilot", "copilot": alias = "github-copilot"
         case "qwen-cloud", "qwen-cloud-token-plan": return nil
         default: alias = lower
         }

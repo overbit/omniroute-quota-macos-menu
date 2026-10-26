@@ -21,6 +21,9 @@ mkdir -p "$APP/Contents/Resources"
 cp "$ROOT/Assets/OmniRoute/icon.icns" "$APP/Contents/Resources/icon.icns"
 cp "$ROOT/Assets/OmniRoute/icon.png" "$APP/Contents/Resources/icon.png"
 cp "$ROOT/Assets/OmniRoute/tray-icon.png" "$APP/Contents/Resources/tray-icon.png"
+mkdir -p "$APP/Contents/Resources/providers"
+cp "$ROOT/Assets/ProviderIcons/"*.svg "$APP/Contents/Resources/providers/"
+
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
