@@ -1,0 +1,155 @@
+name: Notarized macOS release
+
+# Signing keys are NEVER exposed to pull requests or untrusted branches.
+# Tag a tested commit on main (v1.2.3) to publish a Gatekeeper-friendly build.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-15
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify release tag is on main
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Release tags must be vMAJOR.MINOR.PATCH." >&2
+            exit 1
+          fi
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::Releases must be tagged from the main branch." >&2
+            exit 1
+          fi
+          echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: Run tests
+        run: swift test
+
+      - name: Require Apple release credentials
+        shell: bash
+        env:
+          APPSTORE_CERTIFICATES_FILE_BASE64: ${{ secrets.APPSTORE_CERTIFICATES_FILE_BASE64 }}
+          APPSTORE_CERTIFICATES_PASSWORD: ${{ secrets.APPSTORE_CERTIFICATES_PASSWORD }}
+          APPSTORE_API_PRIVATE_KEY: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+          APPSTORE_API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          for name in APPSTORE_CERTIFICATES_FILE_BASE64 APPSTORE_CERTIFICATES_PASSWORD APPSTORE_API_PRIVATE_KEY APPSTORE_API_KEY_ID APPSTORE_ISSUER_ID; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Missing $name in the GitHub release environment." >&2
+              exit 1
+            fi
+          done
+
+      - name: Import Developer ID signing certificate
+        shell: bash
+        env:
+          APPSTORE_CERTIFICATES_FILE_BASE64: ${{ secrets.APPSTORE_CERTIFICATES_FILE_BASE64 }}
+          APPSTORE_CERTIFICATES_PASSWORD: ${{ secrets.APPSTORE_CERTIFICATES_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          keychain="$RUNNER_TEMP/omniroute-signing.keychain-db"
+          password="$(openssl rand -hex 24)"
+          printf '%s' "$APPSTORE_CERTIFICATES_FILE_BASE64" | /usr/bin/base64 -D > "$RUNNER_TEMP/developer-id.p12"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$RUNNER_TEMP/developer-id.p12" -k "$keychain" -P "$APPSTORE_CERTIFICATES_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$password" "$keychain"
+          security list-keychains -d user -s "$keychain"
+
+          # Use the certificate fingerprint to avoid ambiguous renewed identities.
+          identity="$(security find-identity -v -p codesigning "$keychain" | awk '/"Developer ID Application:/ { print $2 }')"
+          if [[ -z "$identity" || "$identity" == *$'\n'* ]]; then
+            echo "::error::Expected exactly one valid Developer ID Application identity in the P12." >&2
+            exit 1
+          fi
+          echo "SIGNING_IDENTITY=$identity" >> "$GITHUB_ENV"
+
+      - name: Package hardened, Developer ID-signed app
+        shell: bash
+        env:
+          REQUIRE_SIGNING: "1"
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          ZIP=0 bash scripts/package-app.sh
+          codesign --verify --deep --strict --verbose=2 dist/OmniRouteQuota.app
+          codesign --display --verbose=4 dist/OmniRouteQuota.app 2>&1 | grep -E 'Authority=Developer ID Application:|TeamIdentifier=|flags='
+
+      - name: Notarize and staple the app
+        shell: bash
+        env:
+          APPSTORE_API_PRIVATE_KEY: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+          APPSTORE_API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          umask 077
+          key="$RUNNER_TEMP/notarization.p8"
+          printf '%s\n' "$APPSTORE_API_PRIVATE_KEY" > "$key"
+          app="dist/OmniRouteQuota.app"
+          submission="$RUNNER_TEMP/OmniRouteQuota-notarization.zip"
+          ditto -c -k --keepParent "$app" "$submission"
+          xcrun notarytool submit "$submission" \
+            --key "$key" \
+            --key-id "$APPSTORE_API_KEY_ID" \
+            --issuer "$APPSTORE_ISSUER_ID" \
+            --wait --timeout 45m --output-format json \
+            > "$RUNNER_TEMP/notarization-result.json"
+          if ! jq -e '.status == "Accepted"' "$RUNNER_TEMP/notarization-result.json" > /dev/null; then
+            echo "::error::Apple notarization was not accepted." >&2
+            jq '{id, status, message}' "$RUNNER_TEMP/notarization-result.json"
+            exit 1
+          fi
+          xcrun stapler staple "$app"
+          xcrun stapler validate "$app"
+          spctl --assess --type execute --verbose=4 "$app"
+
+          # The notarization ticket is attached to the .app, never to a ZIP.
+          # Package only after stapling so offline first launches work.
+          zip_path="dist/OmniRouteQuota-${GITHUB_REF_NAME}-macos.zip"
+          ditto -c -k --keepParent "$app" "$zip_path"
+          echo "RELEASE_ZIP=$zip_path" >> "$GITHUB_ENV"
+
+      - name: Publish signed GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$RELEASE_ZIP" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "$RELEASE_ZIP" \
+              --verify-tag --generate-notes \
+              --title "OmniRoute Quotas $GITHUB_REF_NAME"
+          fi
+
+      - name: Remove temporary Apple credentials
+        if: always()
+        shell: bash
+        run: |
+          security delete-keychain "$RUNNER_TEMP/omniroute-signing.keychain-db" || true
+          rm -f "$RUNNER_TEMP/developer-id.p12" "$RUNNER_TEMP/notarization.p8" \
+                "$RUNNER_TEMP/notarization-result.json" "$RUNNER_TEMP/OmniRouteQuota-notarization.zip"
