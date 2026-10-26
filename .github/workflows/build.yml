@@ -1,0 +1,26 @@
+name: macOS build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-package:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run parser tests
+        run: swift test
+      - name: Build menu-bar app
+        run: ZIP=1 bash scripts/package-app.sh
+      - name: Upload app archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: OmniRouteQuota-macos
+          path: dist/OmniRouteQuota-macos.zip
+          if-no-files-found: error
