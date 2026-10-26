@@ -56,6 +56,16 @@ final class QuotaCoreTests: XCTestCase {
         XCTAssertEqual(req.value(forHTTPHeaderField: "x-omniroute-cli-token"), "token")
     }
 
+    func testDisabledAccountsAreOptionalWithoutLosingCachedQuotas() throws {
+        let providers = data(#"[{"id":"1","provider":"openai-codex","name":"Enabled","isActive":true},{"id":"2","provider":"kimi","name":"Disabled","isActive":false}]"#)
+        let limits = data(#"{"caches":{"1":{"quotas":{"session":{"remainingPercentage":87}}},"2":{"quotas":{"weekly":{"remainingPercentage":31}}}}}"#)
+        let accounts = try QuotaParser.parse(providers: providers, limits: limits, now: now)
+        XCTAssertEqual(QuotaVisibility.visible(accounts, includeDisabled: false).map(\.name), ["Enabled"])
+        let shown = QuotaVisibility.visible(accounts, includeDisabled: true)
+        XCTAssertEqual(shown.count, 2)
+        XCTAssertEqual(shown.first(where: { !$0.active })?.windows.first?.roundedRemaining, 31)
+    }
+
     func testStaleEntryAndClamp() throws {
         let accounts = try QuotaParser.parse(providers: data(#"[{"id":"a","provider":"kimi"}]"#),
             limits: data(#"{"caches":{"a":{"fetchedAt":"2026-10-26T06:00:00Z","quotas":{"window_5h":{"remainingPercentage":120}}}}}"#), now: now)

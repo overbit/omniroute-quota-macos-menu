@@ -50,6 +50,12 @@ public struct QuotaAccount: Identifiable, Equatable, Sendable {
     }
 }
 
+public enum QuotaVisibility {
+    public static func visible(_ accounts: [QuotaAccount], includeDisabled: Bool) -> [QuotaAccount] {
+        includeDisabled ? accounts : accounts.filter(\.active)
+    }
+}
+
 public enum QuotaError: LocalizedError, Equatable {
     case invalidEndpoint
     case invalidProviders

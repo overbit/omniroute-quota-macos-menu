@@ -22,7 +22,7 @@ struct PopoverView: View {
     @ObservedObject var store: QuotaStore
 
     private var listHeight: CGFloat {
-        let rows = store.accounts.reduce(CGFloat(24)) { result, account in
+        let rows = store.visibleAccounts.reduce(CGFloat(24)) { result, account in
             result + 52 + CGFloat(max(1, account.windows.count)) * 25
         }
         return min(500, max(180, rows))
@@ -82,12 +82,12 @@ struct PopoverView: View {
     private var dashboard: some View {
         if store.accounts.isEmpty && store.lastUpdated == nil {
             initialState
-        } else if store.accounts.isEmpty {
+        } else if store.visibleAccounts.isEmpty {
             emptyState
         } else {
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
-                    Text("\(store.activeCount) accounts  ·  \(store.providerCount) providers")
+                    Text("\(store.visibleAccounts.count) accounts  ·  \(store.visibleProviderCount) providers")
                     Spacer()
                     Text("% left")
                 }
@@ -110,8 +110,8 @@ struct PopoverView: View {
 
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        ForEach(store.accounts) { account in
-                            if account.id != store.accounts.first?.id {
+                        ForEach(store.visibleAccounts) { account in
+                            if account.id != store.visibleAccounts.first?.id {
                                 Rectangle().fill(Palette.line)
                                     .frame(height: 1)
                                     .padding(.leading, 49)
@@ -162,12 +162,17 @@ struct PopoverView: View {
             Image(systemName: "tray")
                 .font(.system(size: 24, weight: .light))
                 .foregroundStyle(Palette.muted)
-            Text("No accounts configured")
+            Text(store.accounts.isEmpty ? "No accounts configured" : "No active accounts")
                 .font(.system(size: 13, weight: .semibold))
-            Text("Add an account in OmniRoute to see its quota here.")
+            Text(store.accounts.isEmpty
+                 ? "Add an account in OmniRoute to see its quota here."
+                 : "Enable disabled accounts to see their last cached quotas.")
                 .font(.system(size: 11))
                 .foregroundStyle(Palette.muted)
-            Button("Open OmniRoute") { store.openDashboard() }
+            Button(store.accounts.isEmpty ? "Open OmniRoute" : "Show disabled accounts") {
+                if store.accounts.isEmpty { store.openDashboard() }
+                else { store.showDisabledAccounts = true }
+            }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
         }
@@ -225,14 +230,15 @@ private struct AccountRow: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Spacer(minLength: 3)
+                if !account.active {
+                    Text("DISABLED")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(Palette.muted)
+                }
                 if account.isStale {
                     Text("STALE")
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(Palette.amber)
-                } else if !account.active {
-                    Text("PAUSED")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(Palette.muted)
                 }
                 Text(account.providerName)
                     .font(.system(size: 10))
@@ -240,7 +246,7 @@ private struct AccountRow: View {
                     .lineLimit(1)
             }
             if account.windows.isEmpty {
-                Text(account.active ? "Quota not available" : "Account inactive")
+                Text(account.active ? "Quota not available" : "No cached quota available")
                     .font(.system(size: 11))
                     .foregroundStyle(Palette.muted)
                     .padding(.leading, 32)
@@ -356,6 +362,16 @@ private struct SettingsView: View {
                 Text("Only localhost connections are allowed. Your quotas stay on this Mac.")
                     .font(.system(size: 10))
                     .foregroundStyle(Palette.muted)
+            }
+            VStack(alignment: .leading, spacing: 5) {
+                Toggle("Show disabled accounts", isOn: $store.showDisabledAccounts)
+                    .font(.system(size: 11, weight: .medium))
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                Text("Shows their last cached quota, even when the connection is disabled. Figures may be stale.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Palette.muted)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             VStack(alignment: .leading, spacing: 5) {
                 Text("Management API key · optional")

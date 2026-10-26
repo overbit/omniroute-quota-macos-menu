@@ -10,6 +10,9 @@ final class QuotaStore: ObservableObject {
     @Published private(set) var lastUpdated: Date?
     @Published private(set) var errorMessage: String?
     @Published var showingSettings = false
+    @Published var showDisabledAccounts = UserDefaults.standard.bool(forKey: "showDisabledAccounts") {
+        didSet { UserDefaults.standard.set(showDisabledAccounts, forKey: "showDisabledAccounts") }
+    }
 
     private let client = OmniRouteClient(session: URLSession(configuration: .ephemeral))
     private var polling: Task<Void, Never>?
@@ -21,6 +24,8 @@ final class QuotaStore: ObservableObject {
     var connected: Bool { lastUpdated != nil && errorMessage == nil }
     var providerCount: Int { Set(accounts.map(\.provider)).count }
     var activeCount: Int { accounts.filter(\.active).count }
+    var visibleAccounts: [QuotaAccount] { QuotaVisibility.visible(accounts, includeDisabled: showDisabledAccounts) }
+    var visibleProviderCount: Int { Set(visibleAccounts.map(\.provider)).count }
     var lowestRemaining: Double? { accounts.filter(\.active).compactMap(\.lowestRemaining).min() }
 
     func start() {
