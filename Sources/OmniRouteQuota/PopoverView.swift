@@ -418,8 +418,8 @@ private struct ArrangementSettings: View {
                     .foregroundStyle(TrayPalette.muted)
             }
 
-            ForEach(Array(groups.enumerated()), id: \.element.id) { entry in
-                let group = entry.element
+            ForEach(groups) { group in
+                let providerIndex = groups.firstIndex(where: { $0.id == group.id }) ?? 0
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 5) {
                         ProviderMark(provider: group.providerID, server: store.address)
@@ -436,17 +436,17 @@ private struct ArrangementSettings: View {
 
                         Spacer(minLength: 2)
                         moveButton("chevron.up", "Move \(group.providerName) up",
-                                   disabled: entry.offset == 0) {
+                                   disabled: providerIndex == 0) {
                             store.moveProvider(group.id, by: -1)
                         }
                         moveButton("chevron.down", "Move \(group.providerName) down",
-                                   disabled: entry.offset == groups.count - 1) {
+                                   disabled: providerIndex == groups.count - 1) {
                             store.moveProvider(group.id, by: 1)
                         }
                     }
 
-                    ForEach(Array(group.accounts.enumerated()), id: \.element.id) { item in
-                        let account = item.element
+                    ForEach(group.accounts) { account in
+                        let accountIndex = group.accounts.firstIndex(where: { $0.id == account.id }) ?? 0
                         HStack(spacing: 4) {
                             Toggle(isOn: Binding(
                                 get: { !store.displayPreferences.hiddenAccounts.contains(QuotaDisplayPreferences.accountKey(account)) },
@@ -469,11 +469,11 @@ private struct ArrangementSettings: View {
                             }
                             Spacer(minLength: 1)
                             moveButton("chevron.up", "Move \(account.name) up",
-                                       disabled: item.offset == 0) {
+                                       disabled: accountIndex == 0) {
                                 store.moveAccount(account, by: -1)
                             }
                             moveButton("chevron.down", "Move \(account.name) down",
-                                       disabled: item.offset == group.accounts.count - 1) {
+                                       disabled: accountIndex == group.accounts.count - 1) {
                                 store.moveAccount(account, by: 1)
                             }
                         }
@@ -482,7 +482,7 @@ private struct ArrangementSettings: View {
                 }
                 .padding(.vertical, 4)
 
-                if entry.offset < groups.count - 1 {
+                if providerIndex < groups.count - 1 {
                     Rectangle().fill(TrayPalette.border).frame(height: 1)
                 }
             }
