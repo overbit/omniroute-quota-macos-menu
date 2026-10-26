@@ -21,6 +21,11 @@ final class QuotaStore: ObservableObject {
     var apiKey: String = LocalCredentials.read("apiKey")
     var tokenOverride: String = LocalCredentials.read("cliToken")
 
+    init() {
+        // Keep the status item live from launch, even if its popover is never opened.
+        Task { [weak self] in self?.start() }
+    }
+
     var connected: Bool { lastUpdated != nil && errorMessage == nil }
     var providerCount: Int { Set(accounts.map(\.provider)).count }
     var activeCount: Int { accounts.filter(\.active).count }

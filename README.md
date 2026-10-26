@@ -28,7 +28,7 @@ For the usual local OmniRoute setup, the app can derive the CLI management token
 
 - `GET /api/providers` supplies all configured connections. Disabled accounts are hidden by default and can be shown using the persistent **Show disabled accounts** setting.
 - `GET /api/usage/provider-limits` supplies OmniRoute's **cached** per-connection quota data. The app does not probe provider usage endpoints directly.
-- Refreshes every 60 seconds starting when the menu-bar icon appears, without requiring the popover to be opened, plus manual refresh. If a refresh fails, previously fetched quotas remain visible with a warning; the menu-bar indicator preserves last-known low quotas and shows a connection warning.
+- Refreshes every 60 seconds from app launch, without requiring the popover to be opened, plus manual refresh. If a refresh fails, previously fetched quotas remain visible with a warning; the menu-bar indicator preserves last-known low quotas and shows a connection warning.
 - Standard session/weekly/daily/monthly windows are displayed. Providers that report quotas per model are consolidated by reset time using the **lowest remaining percentage**, so a quota never appears safer than its most constrained model.
 - A blank quota is shown as **Quota not available**, not a fabricated 100%. Disabled accounts show last cached quotas when present and an explicit **Disabled** label; these figures may be stale.
 
