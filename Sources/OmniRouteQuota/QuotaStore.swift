@@ -30,6 +30,20 @@ final class QuotaStore: ObservableObject {
         }
     }
 
+    @Published var menuPreferences: QuotaMenuPreferences = {
+        guard let data = UserDefaults.standard.data(forKey: "quotaMenuPreferences"),
+              let saved = try? JSONDecoder().decode(QuotaMenuPreferences.self, from: data) else {
+            return QuotaMenuPreferences()
+        }
+        return saved
+    }() {
+        didSet {
+            if let data = try? JSONEncoder().encode(menuPreferences) {
+                UserDefaults.standard.set(data, forKey: "quotaMenuPreferences")
+            }
+        }
+    }
+
     private let client = OmniRouteClient(session: URLSession(configuration: .ephemeral))
     private var polling: Task<Void, Never>?
 
@@ -58,7 +72,8 @@ final class QuotaStore: ObservableObject {
         QuotaMenuStatus.evaluate(
             accounts: accounts,
             hasLoaded: lastUpdated != nil,
-            connectionUnavailable: errorMessage != nil
+            connectionUnavailable: errorMessage != nil,
+            preferences: menuPreferences
         )
     }
 
@@ -151,6 +166,18 @@ final class QuotaStore: ObservableObject {
         var updated = displayPreferences
         updated.resetOrder()
         displayPreferences = updated
+    }
+
+    func monitorProvider(_ provider: String, selected: Bool) {
+        var updated = menuPreferences
+        updated.selectProvider(provider, selected: selected)
+        menuPreferences = updated
+    }
+
+    func monitorAccount(_ account: QuotaAccount, selected: Bool) {
+        var updated = menuPreferences
+        updated.selectAccount(account, selected: selected)
+        menuPreferences = updated
     }
 
     func openDashboard() {

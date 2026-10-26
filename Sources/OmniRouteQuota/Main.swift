@@ -18,8 +18,8 @@ struct OmniRouteQuotaApp: App {
     }
 }
 
-/// A tiny branded mark at rest, plus an unambiguous percentage when any active
-/// account is low. No bitmap scaling or redundant alert icon is necessary.
+/// A native template mark in Static mode; in Dynamic mode, the percentage
+/// reports the lowest remaining quota among the chosen providers/accounts.
 private struct MenuBarQuotaIndicator: View {
     let status: QuotaMenuStatus
 
@@ -28,7 +28,7 @@ private struct MenuBarQuotaIndicator: View {
         case .critical: return .red
         case .low: return .orange
         case .checking, .unknown: return .secondary
-        case .healthy: return .primary
+        case .staticIcon, .healthy: return .primary
         }
     }
 
