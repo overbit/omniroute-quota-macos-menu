@@ -47,10 +47,11 @@ OmniRouteTray's Tauri runtime, server supervision, update manager, trends, or co
   paint arbitrary shapes. The dots are thick enough to remain visible at
   system menu-bar scale, with no blurry center or redundant warning triangle.
   The template image automatically contrasts with light/dark menu bars.
-  Below 50%, the mark and a numeric lowest-remaining percentage are amber;
-  below 20%, they turn red. Missing data uses a question mark; connection
-  failures use an exclamation when no low-quota value is present.
-  CI validates actual opaque pixels for all eight dots at 1× and 2×.
+  In **Static** mode, show only the neutral icon regardless of quota or
+  network status. **Dynamic** mode shows a compact number and amber mark below
+  50%, red below 20% (including 0%). In Dynamic mode, missing data uses a
+  question mark and connection failures use an exclamation if no low number
+  exists. CI validates opaque pixels for all eight dots at 1× and 2×.
 
 
 ## Interaction and edge cases
@@ -58,6 +59,19 @@ OmniRouteTray's Tauri runtime, server supervision, update manager, trends, or co
 - Clicking the status item opens the popover; the view stays readable with
   many providers and long account names (middle truncation and hover title).
 - The quota-mode toggle persists across launches.
+- **Menu Bar Icon** settings independently choose **Static / Dynamic**.
+  Dynamic supports **All active** (the backward-compatible default) or
+  **Custom** selection of provider groups and individual connections.
+  Checking a provider includes all accounts with that provider display group,
+  including disabled/new accounts. Individual selections use stable
+  provider+connection IDs and survive account renames. Disabled accounts
+  count when explicitly selected; they are never enabled for routing.
+- The monitor selection is independent of every popover display filter:
+  a hidden or filtered account may still drive a low-quota warning.
+  Static mode suppresses all quota/connection adornments, but cached polling
+  continues so switching back to Dynamic is immediate. A selected account
+  without measurable quota never counts as 0% or 100%; an actual 0% quota
+  remains critical.
 - Settings live in the **footer**, unlike the previous oversized header gear.
   They include local address, optional key overrides, disabled-account display,
   the **Hide accounts without quota** switch, ordered provider/account list,
