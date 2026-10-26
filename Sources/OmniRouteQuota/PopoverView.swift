@@ -3,227 +3,255 @@ import AppKit
 import QuotaCore
 import SwiftUI
 
-private enum Palette {
-    static let background = Color(red: 0.090, green: 0.100, blue: 0.115)
-    static let foreground = Color(red: 0.955, green: 0.961, blue: 0.969)
-    static let muted = Color(red: 0.615, green: 0.650, blue: 0.704)
-    static let line = Color.white.opacity(0.095)
-    static let track = Color.white.opacity(0.13)
-    static let green = Color(red: 0.20, green: 0.81, blue: 0.49)
-    static let amber = Color(red: 0.98, green: 0.69, blue: 0.27)
-    static let red = Color(red: 1.0, green: 0.38, blue: 0.38)
+/// Matches OmniRouteTray's dark 320-point popover and four-column quota grid.
+/// See DESIGN.md for the source reference and intentionally omitted server controls.
+private enum TrayPalette {
+    static let background = Color(red: 28/255, green: 28/255, blue: 30/255)
+    static let raised = Color(red: 44/255, green: 44/255, blue: 46/255)
+    static let border = Color(red: 56/255, green: 56/255, blue: 58/255)
+    static let text = Color(red: 245/255, green: 245/255, blue: 247/255)
+    static let muted = Color(red: 161/255, green: 161/255, blue: 170/255)
+    static let faint = Color(red: 147/255, green: 152/255, blue: 163/255)
+    static let good = Color(red: 34/255, green: 197/255, blue: 94/255)
+    static let warning = Color(red: 245/255, green: 158/255, blue: 11/255)
+    static let bad = Color(red: 239/255, green: 68/255, blue: 68/255)
 
-    static func quota(_ remaining: Double) -> Color {
-        remaining < 20 ? red : remaining < 50 ? amber : green
+    static func quotaColor(_ remaining: Double) -> Color {
+        remaining < 20 ? bad : remaining < 50 ? warning : good
     }
 }
 
 struct PopoverView: View {
     @ObservedObject var store: QuotaStore
+    @AppStorage("quotaShowUsed") private var showUsed = false
 
-    private var providerGroups: [QuotaProviderGroup] {
+    private var groups: [QuotaProviderGroup] {
         QuotaProviderGroup.grouped(store.visibleAccounts)
     }
 
-    private var listHeight: CGFloat {
-        let rows = providerGroups.reduce(CGFloat(0)) { total, group in
-            total + 46 + group.accounts.reduce(CGFloat(0)) { subtotal, account in
-                subtotal + 33 + CGFloat(max(1, account.windows.count)) * 25
-            }
+    private var contentHeight: CGFloat {
+        guard !store.visibleAccounts.isEmpty else { return 190 }
+        let rowHeight = groups.reduce(CGFloat(0)) { total, group in
+            total + group.accounts.reduce(CGFloat(0)) { part, account in
+                let count = max(1, account.windows.count)
+                return part + 27 + CGFloat(count * 23)
+            } + CGFloat(max(0, group.accounts.count - 1)) * 10 + 12
         }
-        return min(500, max(124, rows))
+        let warningHeight: CGFloat = store.errorMessage == nil ? 0 : 29
+        return min(510, max(166, 83 + rowHeight + warningHeight))
     }
 
     var body: some View {
         VStack(spacing: 0) {
             header
-            Rectangle().fill(Palette.line).frame(height: 1)
+            separator
             if store.showingSettings {
                 SettingsView(store: store)
             } else {
-                dashboard
-                Rectangle().fill(Palette.line).frame(height: 1)
+                ScrollView(.vertical) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        statusBand
+                        separator
+                        usage
+                    }
+                }
+                .frame(height: contentHeight)
+                separator
                 footer
             }
         }
-        .frame(width: 410)
-        .background(Palette.background)
-        .foregroundStyle(Palette.foreground)
+        .frame(width: 320)
+        .background(TrayPalette.background)
+        .foregroundStyle(TrayPalette.text)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
         .preferredColorScheme(.dark)
-        .onAppear { store.start() }
+    }
+
+    private var separator: some View {
+        Rectangle()
+            .fill(TrayPalette.border)
+            .frame(height: 1)
     }
 
     private var header: some View {
-        HStack(spacing: 10) {
-            Group {
-                if let icon = OmniRouteArtwork.header {
-                    Image(nsImage: icon)
-                        .resizable()
-                        .interpolation(.high)
-                        .scaledToFit()
-                        .padding(5)
-                } else {
-                    Image(systemName: "circle.hexagongrid.fill")
-                        .font(.system(size: 15, weight: .semibold))
-                }
-            }
-            .frame(width: 31, height: 31)
-            .background(Palette.track, in: RoundedRectangle(cornerRadius: 9))
-            VStack(alignment: .leading, spacing: 1) {
-                Text("OmniRoute")
-                    .font(.system(size: 15, weight: .semibold))
-                Text(store.showingSettings ? "Connection settings" : "Account quotas")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Palette.muted)
-            }
-            Spacer(minLength: 6)
+        HStack(alignment: .firstTextBaseline, spacing: 7) {
             Circle()
-                .fill(store.connected ? Palette.green : (store.refreshing ? Palette.amber : Palette.red))
-                .frame(width: 6, height: 6)
-            Text(store.connected ? "Connected" : (store.refreshing ? "Connecting" : "Offline"))
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(Palette.muted)
-            if !store.showingSettings {
-                iconButton("gearshape", "Settings") { store.showingSettings = true }
-            }
+                .fill(store.connected ? TrayPalette.good : (store.refreshing ? TrayPalette.warning : TrayPalette.bad))
+                .frame(width: 9, height: 9)
+                .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] }
+                .accessibilityHidden(true)
+
+            Text("OmniRoute")
+                .font(.system(size: 15, weight: .bold))
+                .tracking(-0.15)
+
+            Text(store.connected ? "Running" : (store.refreshing ? "Starting…" : "Offline"))
+                .font(.system(size: 11))
+                .foregroundStyle(TrayPalette.muted)
+
+            Spacer(minLength: 3)
         }
-        .padding(.horizontal, 17)
+        .padding(.horizontal, 16)
         .padding(.vertical, 13)
     }
 
-    @ViewBuilder
-    private var dashboard: some View {
-        if store.accounts.isEmpty && store.lastUpdated == nil {
-            initialState
-        } else if store.visibleAccounts.isEmpty {
-            emptyState
-        } else {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack {
-                    Text("\(store.visibleAccounts.count) accounts  ·  \(store.visibleProviderCount) providers")
-                    Spacer()
-                    Text("% left")
-                }
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(Palette.muted)
-                .padding(.horizontal, 18)
-                .padding(.top, 14)
-                .padding(.bottom, 9)
-
-                if store.errorMessage != nil {
-                    HStack(spacing: 7) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                        Text("Showing last known quotas — refresh failed")
-                    }
-                    .font(.system(size: 11))
-                    .foregroundStyle(Palette.amber)
-                    .padding(.horizontal, 18)
-                    .padding(.bottom, 7)
-                }
-
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(providerGroups) { group in
-                            if group.id != providerGroups.first?.id {
-                                Rectangle().fill(Palette.line)
-                                    .frame(height: 1)
-                                    .padding(.leading, 38)
-                                    .padding(.vertical, 3)
-                            }
-                            ProviderSection(group: group, address: store.address)
-                        }
-                    }
-                    .padding(.horizontal, 17)
-                }
-                .frame(height: listHeight)
+    private var statusBand: some View {
+        HStack(spacing: 6) {
+            if store.lastUpdated == nil {
+                Text(store.refreshing ? "Reading accounts…" : "Waiting for OmniRoute")
+            } else {
+                Text("\(store.activeProviderCount)/\(store.providerCount) providers")
+                    .help("Providers with an enabled account / configured providers")
+                Text("·")
+                Text("\(store.accounts.count) accounts")
             }
+            Spacer(minLength: 0)
         }
+        .font(.system(size: 11))
+        .foregroundStyle(TrayPalette.muted)
+        .lineLimit(1)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
 
-    private var initialState: some View {
-        VStack(spacing: 13) {
-            Image(systemName: store.refreshing ? "arrow.triangle.2.circlepath" : "wifi.slash")
-                .font(.system(size: 24, weight: .light))
-                .foregroundStyle(store.refreshing ? Palette.green : Palette.muted)
-            Text(store.refreshing ? "Reading local quotas…" : "Can't connect to OmniRoute")
-                .font(.system(size: 13, weight: .semibold))
-            if let message = store.errorMessage {
-                Text(message)
-                    .multilineTextAlignment(.center)
-                    .font(.system(size: 11))
-                    .foregroundStyle(Palette.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                Text("Make sure OmniRoute is running on this Mac.")
-                    .multilineTextAlignment(.center)
-                    .font(.system(size: 11))
-                    .foregroundStyle(Palette.muted)
+    private var usage: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("USAGE")
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .tracking(0.7)
+                    .foregroundStyle(TrayPalette.faint)
+                Spacer()
+                Button {
+                    showUsed.toggle()
+                } label: {
+                    Text(showUsed ? "% used" : "% left")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(TrayPalette.muted)
+                        .frame(minWidth: 49)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 4)
+                        .background(TrayPalette.raised, in: RoundedRectangle(cornerRadius: 6))
+                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(TrayPalette.border))
+                }
+                .buttonStyle(.plain)
+                .help("Toggle remaining and used quota")
+                .accessibilityLabel(showUsed ? "Showing percent used. Switch to percent left." : "Showing percent left. Switch to percent used.")
             }
-            HStack(spacing: 12) {
-                Button("Retry") { Task { await store.refresh() } }
-                Button("Settings") { store.showingSettings = true }
+            .padding(.bottom, 11)
+
+            if store.errorMessage != nil && store.lastUpdated != nil {
+                Label("Showing last known quotas", systemImage: "exclamationmark.triangle.fill")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(TrayPalette.warning)
+                    .padding(.bottom, 11)
+                    .help(store.errorMessage ?? "")
+            }
+
+            if store.accounts.isEmpty && store.lastUpdated == nil {
+                firstLoad
+            } else if store.visibleAccounts.isEmpty {
+                emptyState
+            } else {
+                LazyVStack(alignment: .leading, spacing: 12) {
+                    ForEach(groups) { group in
+                        VStack(alignment: .leading, spacing: 10) {
+                            ForEach(group.accounts) { account in
+                                AccountQuotaRows(account: account, server: store.address, showUsed: showUsed)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+        .padding(.bottom, 14)
+    }
+
+    private var firstLoad: some View {
+        VStack(spacing: 10) {
+            Image(systemName: store.refreshing ? "arrow.triangle.2.circlepath" : "wifi.slash")
+                .font(.system(size: 20))
+                .foregroundStyle(TrayPalette.faint)
+            Text(store.refreshing ? "Loading quotas…" : "Can't connect to OmniRoute")
+                .font(.system(size: 12, weight: .semibold))
+            Text(store.errorMessage ?? "Make sure OmniRoute is running on this Mac.")
+                .font(.system(size: 11))
+                .foregroundStyle(TrayPalette.muted)
+                .multilineTextAlignment(.center)
+            Button("Retry") { Task { await store.refresh() } }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 14)
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 10) {
+            Text(store.accounts.isEmpty ? "No accounts connected" : "No active accounts")
+                .font(.system(size: 12, weight: .semibold))
+            Text(store.accounts.isEmpty
+                 ? "Add a connection in OmniRoute to see its quota."
+                 : "Show disabled accounts in Settings to see cached quotas.")
+                .font(.system(size: 11))
+                .foregroundStyle(TrayPalette.muted)
+                .multilineTextAlignment(.center)
+            Button(store.accounts.isEmpty ? "Open OmniRoute" : "Show disabled accounts") {
+                if store.accounts.isEmpty { store.openDashboard() }
+                else { store.showDisabledAccounts = true }
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, 30)
-        .frame(height: 220)
-    }
-
-    private var emptyState: some View {
-        VStack(spacing: 9) {
-            Image(systemName: "tray")
-                .font(.system(size: 24, weight: .light))
-                .foregroundStyle(Palette.muted)
-            Text(store.accounts.isEmpty ? "No accounts configured" : "No active accounts")
-                .font(.system(size: 13, weight: .semibold))
-            Text(store.accounts.isEmpty
-                 ? "Add an account in OmniRoute to see its quota here."
-                 : "Enable disabled accounts to see their last cached quotas.")
-                .font(.system(size: 11))
-                .foregroundStyle(Palette.muted)
-            Button(store.accounts.isEmpty ? "Open OmniRoute" : "Show disabled accounts") {
-                if store.accounts.isEmpty { store.openDashboard() }
-                else { store.showDisabledAccounts = true }
-            }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: 190)
+        .padding(.vertical, 17)
     }
 
     private var footer: some View {
-        HStack(spacing: 12) {
-            if let date = store.lastUpdated {
-                Text("Updated \(date, style: .time)")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Palette.muted)
-            } else {
-                Text("Local server · \(store.address)")
-                    .font(.system(size: 11))
-                    .lineLimit(1)
-                    .foregroundStyle(Palette.muted)
+        HStack(spacing: 6) {
+            Text("OmniRoute Quotas")
+                .font(.system(size: 10.5))
+                .foregroundStyle(TrayPalette.faint)
+                .lineLimit(1)
+
+            Button { store.openDashboard() } label: {
+                Text(":\(serverPort)")
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(TrayPalette.muted)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(TrayPalette.raised, in: RoundedRectangle(cornerRadius: 5))
+                    .overlay(RoundedRectangle(cornerRadius: 5).stroke(TrayPalette.border))
             }
-            Spacer(minLength: 8)
-            iconButton("arrow.clockwise", "Refresh quotas") {
-                Task { await store.refresh() }
-            }
-            .disabled(store.refreshing)
-            iconButton("arrow.up.right.square", "Open OmniRoute") { store.openDashboard() }
-            iconButton("power", "Quit") { NSApplication.shared.terminate(nil) }
+            .buttonStyle(.plain)
+            .help("Open OmniRoute")
+            Spacer(minLength: 2)
+            footerButton("arrow.clockwise", "Refresh quotas") { Task { await store.refresh() } }
+                .disabled(store.refreshing)
+            footerButton("arrow.up.right.square", "Open OmniRoute") { store.openDashboard() }
+            footerButton("gearshape", "Settings") { store.showingSettings = true }
         }
-        .padding(.horizontal, 17)
-        .padding(.vertical, 10)
+        .padding(.leading, 16)
+        .padding(.trailing, 12)
+        .padding(.vertical, 7)
     }
 
-    private func iconButton(_ symbol: String, _ title: String, action: @escaping () -> Void) -> some View {
+    private var serverPort: String {
+        guard let endpoint = try? OmniRouteEndpoint(store.address),
+              let port = endpoint.baseURL.port else { return "local" }
+        return String(port)
+    }
+
+    private func footerButton(_ systemName: String, _ title: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(Palette.muted)
-                .frame(width: 25, height: 25)
+            Image(systemName: systemName)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(TrayPalette.muted)
+                .frame(width: 28, height: 28)
+                .background(TrayPalette.raised, in: RoundedRectangle(cornerRadius: 7))
+                .overlay(RoundedRectangle(cornerRadius: 7).stroke(TrayPalette.border))
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -232,141 +260,137 @@ struct PopoverView: View {
     }
 }
 
-private struct ProviderSection: View {
-    let group: QuotaProviderGroup
-    let address: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 9) {
-                ProviderMark(providerID: group.providerID, providerName: group.providerName,
-                             address: address)
-                Text(group.providerName)
-                    .font(.system(size: 12.5, weight: .semibold))
-                    .lineLimit(1)
-                Spacer(minLength: 6)
-                if group.accounts.count > 1 {
-                    Text("\(group.accounts.count) accounts")
-                        .font(.system(size: 10.5, weight: .medium))
-                        .foregroundStyle(Palette.muted)
-                }
-            }
-            ForEach(group.accounts) { account in
-                AccountRow(account: account)
-            }
-        }
-        .padding(.vertical, 8)
-    }
-}
-
-private struct AccountRow: View {
+private struct AccountQuotaRows: View {
     let account: QuotaAccount
+    let server: String
+    let showUsed: Bool
+
+    private var displayName: String {
+        let name = account.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty || ["default", "main"].contains(name.lowercased())
+            ? account.providerName : name
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(spacing: 8) {
-                Text(account.name)
-                    .font(.system(size: 12.5, weight: .semibold))
-                    .foregroundStyle(account.active ? Palette.foreground : Palette.muted)
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 6) {
+                ProviderMark(provider: account.provider, server: server)
+                Text(displayName)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(account.active ? TrayPalette.text : TrayPalette.muted)
                     .lineLimit(1)
                     .truncationMode(.middle)
-                Spacer(minLength: 3)
+                    .help(account.name)
+                Spacer(minLength: 2)
                 if !account.active {
-                    Text("DISABLED")
+                    Text("OFF")
                         .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(Palette.muted)
+                        .tracking(0.35)
+                        .foregroundStyle(TrayPalette.faint)
+                        .help("Disabled account, showing cached quota when available")
                 }
                 if account.isStale {
                     Text("STALE")
                         .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(Palette.amber)
+                        .foregroundStyle(TrayPalette.warning)
                 }
             }
-            .padding(.leading, 34)
             if account.windows.isEmpty {
                 Text(account.active ? "Quota not available" : "No cached quota available")
                     .font(.system(size: 11))
-                    .foregroundStyle(Palette.muted)
-                    .padding(.leading, 34)
-                    .frame(height: 24, alignment: .leading)
+                    .foregroundStyle(TrayPalette.muted)
+                    .padding(.leading, 22)
+                    .frame(height: 20, alignment: .leading)
             } else {
-                VStack(spacing: 7) {
+                VStack(spacing: 5) {
                     ForEach(account.windows) { window in
-                        QuotaBar(window: window, inactive: !account.active)
+                        QuotaGridRow(window: window, showUsed: showUsed, inactive: !account.active)
                     }
                 }
             }
         }
-        .padding(.vertical, 5)
     }
 }
 
 private struct ProviderMark: View {
-    let providerID: String
-    let providerName: String
-    let address: String
+    let provider: String
+    let server: String
+
     @State private var icon: NSImage?
+
+    private var fallbackTint: Color {
+        // OmniRouteTray uses a stable provider hue for unknown providers.
+        let hash = provider.utf8.reduce(UInt32(0)) { ($0 &* 31) &+ UInt32($1) }
+        return Color(hue: Double(hash % 360) / 360, saturation: 0.52, brightness: 0.82)
+    }
 
     var body: some View {
         Group {
             if let icon {
                 Image(nsImage: icon)
                     .resizable()
+                    .renderingMode(.original)
                     .interpolation(.high)
                     .scaledToFit()
-                    .padding(3)
             } else {
-                Text(String(providerName.prefix(1)).uppercased())
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Palette.foreground)
+                Text(String(provider.prefix(1)).uppercased())
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(fallbackTint)
+                    .frame(width: 16, height: 16)
+                    .background(fallbackTint.opacity(0.18), in: RoundedRectangle(cornerRadius: 4))
             }
         }
-        .frame(width: 25, height: 25)
-        .background(Palette.track, in: RoundedRectangle(cornerRadius: 7))
+        .frame(width: 16, height: 16)
         .accessibilityHidden(true)
-        .task(id: "\(address)|\(providerID)") {
-            icon = await OmniRouteArtwork.providerIcon(providerID, server: address)
+        .task(id: "\(server)|\(provider)") {
+            icon = await OmniRouteArtwork.providerIcon(provider, server: server)
         }
     }
 }
 
-private struct QuotaBar: View {
+private struct QuotaGridRow: View {
     let window: QuotaWindow
+    let showUsed: Bool
     let inactive: Bool
 
+    private var value: Double { window.displayedPercent(showUsed: showUsed) }
+    private var color: Color {
+        inactive ? TrayPalette.muted : TrayPalette.quotaColor(window.remainingPercent)
+    }
+
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 7) {
             Text(window.label)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
-                .foregroundStyle(Palette.muted)
-                .frame(width: 32, alignment: .leading)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(TrayPalette.muted)
+                .frame(width: 22, alignment: .leading)
 
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Palette.track)
+                    Capsule().fill(TrayPalette.border)
                     Capsule()
-                        .fill(inactive ? Palette.muted : Palette.quota(window.remainingPercent))
-                        .frame(width: max(0, geometry.size.width * window.remainingPercent / 100))
+                        .fill(color)
+                        .frame(width: geometry.size.width * value / 100)
                 }
             }
             .frame(height: 7)
-            .accessibilityLabel("\(window.roundedRemaining) percent available")
 
-            Text(window.unlimited ? "∞" : "\(window.roundedRemaining)%")
-                .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+            Text(window.unlimited ? "∞" : "\(window.displayedRoundedPercent(showUsed: showUsed))%")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(color)
                 .monospacedDigit()
-                .foregroundStyle(inactive ? Palette.muted : Palette.quota(window.remainingPercent))
-                .frame(width: 40, alignment: .trailing)
+                .frame(width: 34, alignment: .trailing)
 
-            Text(window.countdown())
-                .font(.system(size: 10.5, design: .rounded))
+            Text(window.resetAt == nil ? "" : window.countdown())
+                .font(.system(size: 10.5))
+                .foregroundStyle(TrayPalette.faint)
                 .monospacedDigit()
-                .foregroundStyle(Palette.muted)
-                .frame(width: 53, alignment: .trailing)
+                .frame(width: 44, alignment: .trailing)
+                .help(window.resetAt.map { "Resets \($0.formatted(date: .abbreviated, time: .shortened))" } ?? "Reset time unavailable")
         }
-        .frame(height: 18)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(window.label): \(window.unlimited ? "unlimited" : "\(window.roundedRemaining) percent remaining"), resets in \(window.countdown())")
+        .frame(height: 17)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(window.label): \(window.unlimited ? "unlimited" : "\(window.displayedRoundedPercent(showUsed: showUsed)) percent \(showUsed ? "used" : "remaining")"), resets \(window.countdown())")
     }
 }
 
@@ -385,70 +409,92 @@ private struct SettingsView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text("Local server")
-                    .font(.system(size: 11, weight: .medium))
+        ScrollView {
+            VStack(alignment: .leading, spacing: 13) {
+                HStack(spacing: 9) {
+                    Button {
+                        store.showingSettings = false
+                    } label: {
+                        Label("Back", systemImage: "chevron.left")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(TrayPalette.bad)
+                    Text("Settings")
+                        .font(.system(size: 13, weight: .bold))
+                }
+                .padding(.bottom, 4)
+                Rectangle().fill(TrayPalette.border).frame(height: 1)
+
+                sectionTitle("CONNECTION")
                 TextField("127.0.0.1:20128", text: $address)
                     .textFieldStyle(.roundedBorder)
-                Text("Only localhost connections are allowed. Your quotas stay on this Mac.")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Palette.muted)
-            }
-            VStack(alignment: .leading, spacing: 5) {
+                    .font(.system(size: 12))
+                Text("Only localhost is permitted. Your quota data stays on this Mac.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(TrayPalette.muted)
+
+                sectionTitle("DISPLAY")
                 Toggle("Show disabled accounts", isOn: $store.showDisabledAccounts)
-                    .font(.system(size: 11, weight: .medium))
                     .toggleStyle(.switch)
                     .controlSize(.small)
-                Text("Shows their last cached quota, even when the connection is disabled. Figures may be stale.")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Palette.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            VStack(alignment: .leading, spacing: 5) {
-                Text("Management API key override · optional")
-                    .font(.system(size: 11, weight: .medium))
-                SecureField("Automatically read from ~/.omniroute/.env", text: $apiKey)
-                    .textFieldStyle(.roundedBorder)
-                Text("If empty, uses OMNIROUTE_API_KEY from the local .env file when available. Overrides are stored in Keychain.")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Palette.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            VStack(alignment: .leading, spacing: 5) {
-                Text("CLI token override · optional")
-                    .font(.system(size: 11, weight: .medium))
-                SecureField("Automatically derived on this Mac", text: $cliToken)
-                    .textFieldStyle(.roundedBorder)
-                Text("A local CLI token is derived automatically. Enter an override only if your OmniRoute installation uses custom authentication.")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Palette.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            if let saveError {
-                Text(saveError)
+                    .font(.system(size: 11.5))
+                Text("Disabled accounts show their last cached quota when available.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(TrayPalette.muted)
+
+                sectionTitle("AUTHENTICATION")
+                Text("Management API key override")
                     .font(.system(size: 11))
-                    .foregroundStyle(Palette.red)
+                SecureField("Auto-read from ~/.omniroute/.env", text: $apiKey)
+                    .textFieldStyle(.roundedBorder)
+                Text("Leave empty to read OMNIROUTE_API_KEY locally. Manual overrides are stored in Keychain.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(TrayPalette.muted)
                     .fixedSize(horizontal: false, vertical: true)
-            }
-            HStack {
-                Button("Back") { store.showingSettings = false }
-                Spacer()
-                Button("Save & connect") {
-                    do {
-                        try store.save(address: address, apiKey: apiKey, tokenOverride: cliToken)
-                    } catch {
-                        saveError = error.localizedDescription
-                    }
+
+                Text("CLI token override")
+                    .font(.system(size: 11))
+                SecureField("Derived automatically", text: $cliToken)
+                    .textFieldStyle(.roundedBorder)
+                Text("Only needed when your OmniRoute installation uses a custom CLI token.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(TrayPalette.muted)
+
+                if let saveError {
+                    Text(saveError)
+                        .font(.system(size: 11))
+                        .foregroundStyle(TrayPalette.bad)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .keyboardShortcut(.return, modifiers: [])
-                .buttonStyle(.borderedProminent)
-                .tint(Palette.green)
+
+                HStack {
+                    Button("Quit app") { NSApplication.shared.terminate(nil) }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(TrayPalette.muted)
+                        .font(.system(size: 11))
+                    Spacer()
+                    Button("Save & connect") {
+                        do { try store.save(address: address, apiKey: apiKey, tokenOverride: cliToken) }
+                        catch { saveError = error.localizedDescription }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+                .padding(.top, 5)
             }
-            .controlSize(.small)
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: 475)
+    }
+
+    private func sectionTitle(_ value: String) -> some View {
+        Text(value)
+            .font(.system(size: 10.5, weight: .semibold))
+            .tracking(0.7)
+            .foregroundStyle(TrayPalette.faint)
+            .padding(.top, 3)
     }
 }
 #endif
