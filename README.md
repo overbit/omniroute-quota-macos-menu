@@ -6,7 +6,9 @@ The popover follows [OmniRouteTray](https://github.com/zoispag/omniroute-tray)'s
 
 ## Install
 
-Download the `OmniRouteQuota-macos.zip` artifact from the latest successful [macOS build](https://github.com/overbit/omniroute-quota-macos-menu/actions/workflows/build.yml), extract `OmniRouteQuota.app`, and copy it to `/Applications`. Builds are ad-hoc signed, **not notarized**. If macOS blocks a self-built or downloaded copy, open it via Finder's right-click **Open** or remove quarantine only after you have verified the source and build.
+For normal installation, download the versioned `OmniRouteQuota-vX.Y.Z-macos.zip` from [GitHub Releases](https://github.com/overbit/omniroute-quota-macos-menu/releases) after the first signed release has been published. Extract `OmniRouteQuota.app` and move it to `/Applications`. Release builds use an Apple **Developer ID Application** signature, hardened runtime, notarization, and a stapled ticket. macOS can still display its standard first-launch confirmation, but users should not need to bypass an unidentified-developer block.
+
+The [macOS CI workflow](https://github.com/overbit/omniroute-quota-macos-menu/actions/workflows/build.yml) is for development/testing only. Its artifacts are **ad-hoc signed and NOT notarized**, and should not be distributed to end users. Never disable Gatekeeper to install a production release. For release setup, signing certificate requirements, GitHub secrets, and version tags, see [RELEASING.md](RELEASING.md).
 
 Alternatively, build locally with the Xcode Command Line Tools:
 
