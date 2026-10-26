@@ -168,6 +168,19 @@ final class QuotaCoreTests: XCTestCase {
         XCTAssertTrue(status.description.contains("cached"))
     }
 
+    func testQuotaDisplayToggleMatchesOriginalTray() {
+        let window = QuotaWindow(id: "wk", label: "wk", remainingPercent: 64.0, resetAt: nil)
+        XCTAssertEqual(window.displayedPercent(showUsed: false), 64.0)
+        XCTAssertEqual(window.displayedPercent(showUsed: true), 36.0)
+        XCTAssertEqual(window.displayedRoundedPercent(showUsed: false), 64)
+        XCTAssertEqual(window.displayedRoundedPercent(showUsed: true), 36)
+
+        let empty = QuotaWindow(id: "sess", label: "sess", remainingPercent: 0, resetAt: nil)
+        XCTAssertEqual(empty.displayedRoundedPercent(showUsed: true), 100)
+        let full = QuotaWindow(id: "sess", label: "sess", remainingPercent: 100, resetAt: nil)
+        XCTAssertEqual(full.displayedRoundedPercent(showUsed: true), 0)
+    }
+
     func testStaleEntryAndClamp() throws {
         let accounts = try QuotaParser.parse(providers: data(#"[{"id":"a","provider":"kimi"}]"#),
             limits: data(#"{"caches":{"a":{"fetchedAt":"2026-10-26T06:00:00Z","quotas":{"window_5h":{"remainingPercentage":120}}}}}"#), now: now)

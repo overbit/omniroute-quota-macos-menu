@@ -17,6 +17,16 @@ public struct QuotaWindow: Identifiable, Equatable, Sendable {
 
     public var roundedRemaining: Int { Int(remainingPercent.rounded()) }
 
+    /// Mirrors OmniRouteTray's usage control: color thresholds always use quota left,
+    /// while the bar width and numeric label show the requested direction.
+    public func displayedPercent(showUsed: Bool) -> Double {
+        showUsed ? 100 - remainingPercent : remainingPercent
+    }
+
+    public func displayedRoundedPercent(showUsed: Bool) -> Int {
+        Int(displayedPercent(showUsed: showUsed).rounded())
+    }
+
     public func countdown(from now: Date = Date()) -> String {
         guard let resetAt else { return "—" }
         let minutes = Int(resetAt.timeIntervalSince(now) / 60)
