@@ -9,13 +9,13 @@ Apple's supported direct-distribution chain is:
 1. Sign the app with a **Developer ID Application** certificate, hardened
    runtime, and a secure timestamp.
 2. Upload the signed app ZIP to Apple's notarization service via
-   \`xcrun notarytool submit --wait\`.
-3. **Staple** the returned ticket to the \`.app\`, then verify it.
+   `xcrun notarytool submit --wait`.
+3. **Staple** the returned ticket to the `.app`, then verify it.
 4. Only after stapling, create the distributable ZIP and publish a GitHub
    Release. (A ZIP cannot be stapled directly.)
 
-The implementation is \`.github/workflows/release.yml\` and
-\`scripts/package-app.sh\`. No certificate or API key goes into the repository.
+The implementation is `.github/workflows/release.yml` and
+`scripts/package-app.sh`. No certificate or API key goes into the repository.
 
 ## One-time Apple setup
 
@@ -24,63 +24,63 @@ creates the **Developer ID Application** certificate at
 [Certificates, Identifiers & Profiles](https://developer.apple.com/account/resources/certificates/list),
 then installs it in the local Mac Keychain, with its **private key**. In Keychain
 Access, select it under **My Certificates**, export the certificate and private
-key as a password-protected \`.p12\`.
+key as a password-protected `.p12`.
 
 Generate an **App Store Connect *team* API key** with Developer role or higher
 at [App Store Connect → Users and Access → Integrations → Team Keys](https://appstoreconnect.apple.com/access/integrations/api).
-Download the private \`.p8\` once and retain the Key ID and Issuer ID.
+Download the private `.p8` once and retain the Key ID and Issuer ID.
 Individual API keys do not support the Notary service. Prefer the least
 privileged team key accepted for notarization.
 
 ## One-time GitHub setup
 
 In this repository, go to **Settings → Environments → New environment** and
-create an environment named **\`release\`**. Configure required reviewers and
-restrict deployments to version tags (\`v*\`) where supported. Protect who can
+create an environment named **`release`**. Configure required reviewers and
+restrict deployments to version tags (`v*`) where supported. Protect who can
 push or create release tags. The workflow additionally rejects tags whose
-commit is not on \`main\`.
+commit is not on `main`.
 
 Add these five **environment secrets** (not plain repository variables):
 
 | Secret | Value |
 |---|---|
-| \`APPSTORE_CERTIFICATES_FILE_BASE64\` | Base64 of the Developer ID Application \`.p12\` |
-| \`APPSTORE_CERTIFICATES_PASSWORD\` | Password used to export that \`.p12\` |
-| \`APPSTORE_API_PRIVATE_KEY\` | Full PEM contents of the **team** API \`.p8\`, including BEGIN/END lines |
-| \`APPSTORE_API_KEY_ID\` | App Store Connect team API Key ID |
-| \`APPSTORE_ISSUER_ID\` | App Store Connect API Issuer ID (UUID) |
+| `APPSTORE_CERTIFICATES_FILE_BASE64` | Base64 of the Developer ID Application `.p12` |
+| `APPSTORE_CERTIFICATES_PASSWORD` | Password used to export that `.p12` |
+| `APPSTORE_API_PRIVATE_KEY` | Full PEM contents of the **team** API `.p8`, including BEGIN/END lines |
+| `APPSTORE_API_KEY_ID` | App Store Connect team API Key ID |
+| `APPSTORE_ISSUER_ID` | App Store Connect API Issuer ID (UUID) |
 
 On your Mac, you can put the P12 base64 on the clipboard without printing it:
 
-\`\`\`sh
+```sh
 base64 -i ~/Downloads/DeveloperID-Application.p12 | pbcopy
-\`\`\`
+```
 
 Paste the result into the matching GitHub environment secret. Paste the full
-\`.p8\` file contents into \`APPSTORE_API_PRIVATE_KEY\`. **Do not paste
+`.p8` file contents into `APPSTORE_API_PRIVATE_KEY`. **Do not paste
 private keys, certificates, or passwords into an issue, PR, chat, or commit.**
 
 ## Release a version
 
 After the feature branch containing the release workflow is merged to
-\`main\`, create a semantic version tag on \`main\`:
+`main`, create a semantic version tag on `main`:
 
-\`\`\`sh
+```sh
 git switch main
 git pull --ff-only origin main
 git tag v0.1.0
 git push origin v0.1.0
-\`\`\`
+```
 
-The tag starts the protected \`Notarized macOS release\` workflow. It tests the
+The tag starts the protected `Notarized macOS release` workflow. It tests the
 app, imports the P12 into a temporary runner Keychain, signs with a hardened
 runtime and secure timestamp, notarizes, staples, validates Gatekeeper,
 publishes a versioned ZIP to **GitHub Releases**, and deletes the temporary
 credentials. The workflow **fails closed** if signing credentials are absent,
 Apple rejects the submission, or validation fails. Nothing is published in
-those cases. The version in the tag becomes \`CFBundleShortVersionString\`.
+those cases. The version in the tag becomes `CFBundleShortVersionString`.
 
-For subsequent updates, create a new tag (for example \`v0.1.1\`). Continue
+For subsequent updates, create a new tag (for example `v0.1.1`). Continue
 using the **same developer team/Developer ID** so macOS recognizes updates
 from the same publisher. Do not install ad-hoc CI builds over trusted releases.
 
@@ -88,12 +88,12 @@ from the same publisher. Do not install ad-hoc CI builds over trusted releases.
 
 After extracting the GitHub Release ZIP on a Mac:
 
-\`\`\`sh
+```sh
 codesign --verify --deep --strict --verbose=2 OmniRouteQuota.app
 codesign --display --verbose=4 OmniRouteQuota.app
 xcrun stapler validate OmniRouteQuota.app
 spctl --assess --type execute --verbose=4 OmniRouteQuota.app
-\`\`\`
+```
 
 The signature must identify a **Developer ID Application**, the runtime must
 be hardened, the notarization ticket must validate, and Gatekeeper must accept
