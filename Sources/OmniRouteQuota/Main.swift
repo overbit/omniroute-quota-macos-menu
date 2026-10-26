@@ -33,52 +33,45 @@ private struct MenuBarQuotaIndicator: View {
     }
 
     var body: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: 2) {
             Group {
                 if let icon = OmniRouteArtwork.statusBar {
+                    // NSImage already has its 11 pt intrinsic size. Do not
+                    // rescale the 22 px artwork and blur its fine silhouette.
                     Image(nsImage: icon)
-                        .resizable()
                         .renderingMode(.template)
-                        .interpolation(.high)
-                        .scaledToFit()
+                        .interpolation(.none)
                 } else {
                     Image(systemName: "circle.hexagongrid.fill")
-                        .resizable()
-                        .scaledToFit()
+                        .font(.system(size: 11))
                 }
             }
-            .frame(width: 13, height: 13)
+            .frame(width: 11, height: 11)
             .foregroundStyle(tint)
 
             if status.isLow {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(tint)
+                // The percentage *is* the warning. An extra triangle makes
+                // the status item large and harder to read at menu-bar scale.
                 Text("\(status.lowestPercent ?? 0)%")
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(tint)
-            }
-
-            if status.connectionUnavailable {
-                Image(systemName: "exclamationmark.circle.fill")
-                    .font(.system(size: 9))
-                    .foregroundStyle(.secondary)
-            } else if status.severity == .checking {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 9))
-                    .foregroundStyle(.secondary)
+            } else if status.connectionUnavailable {
+                Image(systemName: "exclamationmark")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.red)
             } else if status.severity == .unknown {
-                Image(systemName: "questionmark.circle")
-                    .font(.system(size: 9))
+                Image(systemName: "questionmark")
+                    .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(.secondary)
             }
         }
-        .frame(height: 15)
+        .frame(height: 12)
         .fixedSize(horizontal: true, vertical: false)
         .help(status.description)
         .accessibilityLabel(status.description)
     }
+
 }
 #else
 @main
