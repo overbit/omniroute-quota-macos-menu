@@ -181,6 +181,85 @@ final class QuotaCoreTests: XCTestCase {
         XCTAssertEqual(full.displayedRoundedPercent(showUsed: true), 0)
     }
 
+    func testHideWithoutQuotaFiltersAccountsAndEmptyProviders() {
+        let noQuota = QuotaAccount(id: "1", name: "No quota", provider: "anthropic", active: true, windows: [], isStale: false)
+        let unlimited = QuotaAccount(id: "2", name: "Unlimited only", provider: "lm-studio", active: true, windows: [
+            QuotaWindow(id: "unlimited", label: "mo", remainingPercent: 0, resetAt: nil, unlimited: true)
+        ], isStale: false)
+        let zeroQuota = QuotaAccount(id: "3", name: "Exhausted", provider: "kimi", active: true, windows: [
+            QuotaWindow(id: "week", label: "wk", remainingPercent: 0, resetAt: nil)
+        ], isStale: false)
+        let inactive = QuotaAccount(id: "4", name: "Disabled", provider: "kimi", active: false, windows: [
+            QuotaWindow(id: "week", label: "wk", remainingPercent: 70, resetAt: nil)
+        ], isStale: true)
+        let all = [noQuota, unlimited, zeroQuota, inactive]
+        var prefs = QuotaDisplayPreferences()
+
+        XCTAssertTrue(prefs.hideWithoutQuota)
+        XCTAssertEqual(prefs.visibleGroups(from: all, includeDisabled: false).flatMap(\.accounts).map(\.id), ["3"])
+        XCTAssertEqual(prefs.visibleGroups(from: all, includeDisabled: true).flatMap(\.accounts).map(\.id), ["3", "4"])
+
+        prefs.hideWithoutQuota = false
+        XCTAssertEqual(prefs.visibleGroups(from: all, includeDisabled: false).flatMap(\.accounts).count, 3)
+        XCTAssertEqual(prefs.orderedGroups(from: all).flatMap(\.accounts).count, 4)
+    }
+
+    func testManualProviderAndAccountVisibilityDoesNotLoseSettingsEntries() {
+        let accounts = [
+            QuotaAccount(id: "1", name: "Work", provider: "openai", active: true, windows: [
+                QuotaWindow(id: "wk", label: "wk", remainingPercent: 40, resetAt: nil)
+            ], isStale: false),
+            QuotaAccount(id: "2", name: "Personal", provider: "openai", active: true, windows: [
+                QuotaWindow(id: "wk", label: "wk", remainingPercent: 77, resetAt: nil)
+            ], isStale: false),
+            QuotaAccount(id: "3", name: "Main", provider: "kimi", active: true, windows: [
+                QuotaWindow(id: "wk", label: "wk", remainingPercent: 15, resetAt: nil)
+            ], isStale: false)
+        ]
+        var prefs = QuotaDisplayPreferences()
+        prefs.hiddenAccounts.insert(QuotaDisplayPreferences.accountKey(accounts[0]))
+        XCTAssertEqual(prefs.visibleGroups(from: accounts, includeDisabled: true).flatMap(\.accounts).map(\.id), ["3", "2"])
+        prefs.hiddenProviders.insert("OpenAI")
+        XCTAssertEqual(prefs.visibleGroups(from: accounts, includeDisabled: true).map(\.id), ["Kimi"])
+        XCTAssertEqual(prefs.orderedGroups(from: accounts).flatMap(\.accounts).count, 3)
+        prefs.hiddenProviders.remove("OpenAI")
+        prefs.hiddenAccounts.remove(QuotaDisplayPreferences.accountKey(accounts[0]))
+        XCTAssertEqual(prefs.visibleGroups(from: accounts, includeDisabled: true).flatMap(\.accounts).count, 3)
+    }
+
+    func testCustomProviderAndAccountOrderSurvivesUpdatesAndSerialization() throws {
+        let a = QuotaAccount(id: "1", name: "First", provider: "openai", active: true, windows: [], isStale: false)
+        let b = QuotaAccount(id: "2", name: "Second", provider: "openai", active: true, windows: [], isStale: false)
+        let c = QuotaAccount(id: "3", name: "Third", provider: "kimi", active: true, windows: [], isStale: false)
+        let all = [a, b, c]
+        var prefs = QuotaDisplayPreferences()
+        XCTAssertFalse(prefs.moveProvider("Kimi", by: -2, among: all))
+        XCTAssertTrue(prefs.moveProvider("OpenAI", by: -1, among: all))
+        XCTAssertTrue(prefs.moveAccount(b, by: -1, among: all))
+        XCTAssertFalse(prefs.moveAccount(b, by: -1, among: all))
+        XCTAssertEqual(prefs.orderedGroups(from: all).map(\.id), ["OpenAI", "Kimi"])
+        XCTAssertEqual(prefs.orderedGroups(from: all)[0].accounts.map(\.id), ["2", "1"])
+
+        let encoded = try JSONEncoder().encode(prefs)
+        let restored = try JSONDecoder().decode(QuotaDisplayPreferences.self, from: encoded)
+        XCTAssertEqual(restored, prefs)
+
+        let new = QuotaAccount(id: "4", name: "New", provider: "openai", active: true, windows: [], isStale: false)
+        XCTAssertEqual(restored.orderedGroups(from: [new, a, c, b])[0].accounts.map(\.id), ["2", "1", "4"])
+
+        var reset = restored
+        reset.resetOrder()
+        XCTAssertTrue(reset.providerOrder.isEmpty)
+        XCTAssertTrue(reset.accountOrder.isEmpty)
+        XCTAssertEqual(reset.orderedGroups(from: all).map(\.id), ["Kimi", "OpenAI"])
+    }
+
+    func testProviderAndConnectionKeysAvoidAmbiguity() {
+        let a = QuotaAccount(id: "bc", name: "A", provider: "a", active: true, windows: [], isStale: false)
+        let b = QuotaAccount(id: "c", name: "B", provider: "ab", active: true, windows: [], isStale: false)
+        XCTAssertNotEqual(QuotaDisplayPreferences.accountKey(a), QuotaDisplayPreferences.accountKey(b))
+    }
+
     func testStaleEntryAndClamp() throws {
         let accounts = try QuotaParser.parse(providers: data(#"[{"id":"a","provider":"kimi"}]"#),
             limits: data(#"{"caches":{"a":{"fetchedAt":"2026-10-26T06:00:00Z","quotas":{"window_5h":{"remainingPercentage":120}}}}}"#), now: now)
