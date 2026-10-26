@@ -12,8 +12,9 @@ OmniRouteTray's Tauri runtime, server supervision, update manager, trends, or co
 
 ## Dimensions and rhythm
 
-- **320-point** popover width; content height follows its data and caps at
-  **510 points**, scrolling between a fixed header and footer.
+- **310-point** popover width; content height follows the visible quota rows
+  and caps at **425 points**, scrolling between a fixed header and footer.
+  Empty providers and unused rows consume no space.
 - Header: green/amber/red 9-point status dot, bold 15-point OmniRoute, 11-point
   running state, on one baseline; 13/16-point padding.
 - Status strip: 11-point muted "active/configured providers · accounts"; no
@@ -21,14 +22,15 @@ OmniRouteTray's Tauri runtime, server supervision, update manager, trends, or co
 - Usage heading: spaced 10.5-point "USAGE" and a small, outlined, persistent
   **% left / % used** button.
 - Each account: inline 16-point brand mark (bundled official/OmniRouteTray SVG),
-  12-point bold account name, then compact rows. One account follows the next
-  within the provider group, without repeated section headings or cards.
+  11.5-point semibold account name, then compact rows. One account follows
+  the next within the provider group, without repeated headings or cards.
 - Each quota row is a four-column grid:
-  **22-point window label / flexible 7-point bar / 34-point percentage /
-  44-point reset countdown**, 7-point gaps and 5-point row separation.
-- Groups preserve provider grouping and get modest 12-point vertical spacing.
+  **22-point window label / flexible 6-point bar / 34-point percentage /
+  44-point reset countdown**, 7-point gaps and 3-point row separation.
+- Groups preserve provider grouping with 8-point spacing; accounts within
+  a provider use 6-point separation.
 - Fixed footer: small app name, click-to-open local port chip, three
-  28-point outlined actions (refresh, open router, settings).
+  24-point outlined actions (refresh, open router, settings).
 
 ## Color and type
 
@@ -48,8 +50,19 @@ OmniRouteTray's Tauri runtime, server supervision, update manager, trends, or co
   many providers and long account names (middle truncation and hover title).
 - The quota-mode toggle persists across launches.
 - Settings live in the **footer**, unlike the previous oversized header gear.
-  It contains local address, optional key overrides, disabled-account display,
-  and a Quit action.
+  They include local address, optional key overrides, disabled-account display,
+  the **Hide accounts without quota** switch, ordered provider/account list,
+  and Quit action. Settings scroll independently.
+- **Hide accounts without quota** is enabled by default; it removes accounts
+  with no finite quota windows (including unlimited-only) and automatically
+  removes providers that have no remaining visible accounts. A valid 0%-left
+  window stays visible. The setting only affects presentation, never API data
+  or menu-bar low-quota monitoring.
+- The Settings ordering list is always built from every configured account,
+  unaffected by the disabled and no-quota filters. Users can move providers
+  and accounts up/down, uncheck an entire provider or individual account,
+  and reset ordering without resetting visibility. IDs, not labels, identify
+  stored preferences across quota refreshes and app launches.
 - Disabled accounts remain optional, retain any last cached quota, and are
   clearly marked OFF; stale readings get an independent warning.
 - Header/footer remain fixed while usage scrolls. VoiceOver labels name each
