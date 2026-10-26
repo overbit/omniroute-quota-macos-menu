@@ -34,8 +34,9 @@ private struct MenuBarQuotaIndicator: View {
 
     var body: some View {
         HStack(spacing: 2) {
-            OmniRouteMenuMark()
-                .fill(tint)
+            Image(nsImage: OmniRouteMenuMark.image)
+                .renderingMode(.template)
+                .foregroundStyle(tint)
                 .frame(width: OmniRouteMenuMark.pointSize, height: OmniRouteMenuMark.pointSize)
                 .accessibilityHidden(true)
 
