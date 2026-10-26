@@ -25,20 +25,18 @@ struct PopoverView: View {
     @ObservedObject var store: QuotaStore
     @AppStorage("quotaShowUsed") private var showUsed = false
 
-    private var groups: [QuotaProviderGroup] {
-        QuotaProviderGroup.grouped(store.visibleAccounts)
-    }
+    private var groups: [QuotaProviderGroup] { store.visibleGroups }
 
     private var contentHeight: CGFloat {
-        guard !store.visibleAccounts.isEmpty else { return 190 }
+        guard !groups.isEmpty else { return 130 }
         let rowHeight = groups.reduce(CGFloat(0)) { total, group in
             total + group.accounts.reduce(CGFloat(0)) { part, account in
                 let count = max(1, account.windows.count)
-                return part + 27 + CGFloat(count * 23)
-            } + CGFloat(max(0, group.accounts.count - 1)) * 10 + 12
+                return part + 21 + CGFloat(count * 15) + CGFloat(max(0, count - 1)) * 3
+            } + CGFloat(max(0, group.accounts.count - 1)) * 6 + 8
         }
-        let warningHeight: CGFloat = store.errorMessage == nil ? 0 : 29
-        return min(510, max(166, 83 + rowHeight + warningHeight))
+        let warningHeight: CGFloat = store.errorMessage == nil ? 0 : 21
+        return min(425, max(130, 55 + rowHeight + warningHeight))
     }
 
     var body: some View {
@@ -60,7 +58,7 @@ struct PopoverView: View {
                 footer
             }
         }
-        .frame(width: 320)
+        .frame(width: 310)
         .background(TrayPalette.background)
         .foregroundStyle(TrayPalette.text)
         .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -91,8 +89,8 @@ struct PopoverView: View {
 
             Spacer(minLength: 3)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 13)
+        .padding(.horizontal, 13)
+        .padding(.vertical, 9)
     }
 
     private var statusBand: some View {
@@ -110,8 +108,8 @@ struct PopoverView: View {
         .font(.system(size: 11))
         .foregroundStyle(TrayPalette.muted)
         .lineLimit(1)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 13)
+        .padding(.vertical, 7)
     }
 
     private var usage: some View {
@@ -138,13 +136,13 @@ struct PopoverView: View {
                 .help("Toggle remaining and used quota")
                 .accessibilityLabel(showUsed ? "Showing percent used. Switch to percent left." : "Showing percent left. Switch to percent used.")
             }
-            .padding(.bottom, 11)
+            .padding(.bottom, 7)
 
             if store.errorMessage != nil && store.lastUpdated != nil {
                 Label("Showing last known quotas", systemImage: "exclamationmark.triangle.fill")
                     .font(.system(size: 10.5))
                     .foregroundStyle(TrayPalette.warning)
-                    .padding(.bottom, 11)
+                    .padding(.bottom, 7)
                     .help(store.errorMessage ?? "")
             }
 
@@ -153,9 +151,9 @@ struct PopoverView: View {
             } else if store.visibleAccounts.isEmpty {
                 emptyState
             } else {
-                LazyVStack(alignment: .leading, spacing: 12) {
+                LazyVStack(alignment: .leading, spacing: 8) {
                     ForEach(groups) { group in
-                        VStack(alignment: .leading, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 6) {
                             ForEach(group.accounts) { account in
                                 AccountQuotaRows(account: account, server: store.address, showUsed: showUsed)
                             }
@@ -164,9 +162,9 @@ struct PopoverView: View {
                 }
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 12)
-        .padding(.bottom, 14)
+        .padding(.horizontal, 13)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
     }
 
     private var firstLoad: some View {
@@ -189,29 +187,29 @@ struct PopoverView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 10) {
-            Text(store.accounts.isEmpty ? "No accounts connected" : "No active accounts")
+        VStack(spacing: 8) {
+            Text(store.accounts.isEmpty ? "No accounts connected" : "No quotas to display")
                 .font(.system(size: 12, weight: .semibold))
             Text(store.accounts.isEmpty
                  ? "Add a connection in OmniRoute to see its quota."
-                 : "Show disabled accounts in Settings to see cached quotas.")
-                .font(.system(size: 11))
+                 : "All accounts are hidden or have no measurable quota. Adjust display settings to show them.")
+                .font(.system(size: 10.5))
                 .foregroundStyle(TrayPalette.muted)
                 .multilineTextAlignment(.center)
-            Button(store.accounts.isEmpty ? "Open OmniRoute" : "Show disabled accounts") {
+            Button(store.accounts.isEmpty ? "Open OmniRoute" : "Display settings") {
                 if store.accounts.isEmpty { store.openDashboard() }
-                else { store.showDisabledAccounts = true }
+                else { store.showingSettings = true }
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 17)
+        .padding(.vertical, 13)
     }
 
     private var footer: some View {
         HStack(spacing: 6) {
-            Text("OmniRoute Quotas")
+            Text("OmniRoute")
                 .font(.system(size: 10.5))
                 .foregroundStyle(TrayPalette.faint)
                 .lineLimit(1)
@@ -233,9 +231,9 @@ struct PopoverView: View {
             footerButton("arrow.up.right.square", "Open OmniRoute") { store.openDashboard() }
             footerButton("gearshape", "Settings") { store.showingSettings = true }
         }
-        .padding(.leading, 16)
-        .padding(.trailing, 12)
-        .padding(.vertical, 7)
+        .padding(.leading, 13)
+        .padding(.trailing, 9)
+        .padding(.vertical, 5)
     }
 
     private var serverPort: String {
@@ -249,9 +247,9 @@ struct PopoverView: View {
             Image(systemName: systemName)
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(TrayPalette.muted)
-                .frame(width: 28, height: 28)
-                .background(TrayPalette.raised, in: RoundedRectangle(cornerRadius: 7))
-                .overlay(RoundedRectangle(cornerRadius: 7).stroke(TrayPalette.border))
+                .frame(width: 24, height: 24)
+                .background(TrayPalette.raised, in: RoundedRectangle(cornerRadius: 6))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(TrayPalette.border))
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -272,11 +270,11 @@ private struct AccountQuotaRows: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 6) {
                 ProviderMark(provider: account.provider, server: server)
                 Text(displayName)
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.system(size: 11.5, weight: .semibold))
                     .foregroundStyle(account.active ? TrayPalette.text : TrayPalette.muted)
                     .lineLimit(1)
                     .truncationMode(.middle)
@@ -302,7 +300,7 @@ private struct AccountQuotaRows: View {
                     .padding(.leading, 22)
                     .frame(height: 20, alignment: .leading)
             } else {
-                VStack(spacing: 5) {
+                VStack(spacing: 3) {
                     ForEach(account.windows) { window in
                         QuotaGridRow(window: window, showUsed: showUsed, inactive: !account.active)
                     }
@@ -361,7 +359,7 @@ private struct QuotaGridRow: View {
     var body: some View {
         HStack(spacing: 7) {
             Text(window.label)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(size: 10.5, weight: .semibold))
                 .foregroundStyle(TrayPalette.muted)
                 .frame(width: 22, alignment: .leading)
 
@@ -373,7 +371,7 @@ private struct QuotaGridRow: View {
                         .frame(width: geometry.size.width * value / 100)
                 }
             }
-            .frame(height: 7)
+            .frame(height: 6)
 
             Text(window.unlimited ? "∞" : "\(window.displayedRoundedPercent(showUsed: showUsed))%")
                 .font(.system(size: 11, weight: .semibold))
@@ -382,15 +380,128 @@ private struct QuotaGridRow: View {
                 .frame(width: 34, alignment: .trailing)
 
             Text(window.resetAt == nil ? "" : window.countdown())
-                .font(.system(size: 10.5))
+                .font(.system(size: 10))
                 .foregroundStyle(TrayPalette.faint)
                 .monospacedDigit()
                 .frame(width: 44, alignment: .trailing)
                 .help(window.resetAt.map { "Resets \($0.formatted(date: .abbreviated, time: .shortened))" } ?? "Reset time unavailable")
         }
-        .frame(height: 17)
+        .frame(height: 15)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(window.label): \(window.unlimited ? "unlimited" : "\(window.displayedRoundedPercent(showUsed: showUsed)) percent \(showUsed ? "used" : "remaining")"), resets \(window.countdown())")
+    }
+}
+
+private struct ArrangementSettings: View {
+    @ObservedObject var store: QuotaStore
+
+    private var groups: [QuotaProviderGroup] { store.settingsGroups }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 6) {
+                Text("Uncheck to hide · arrows to reorder")
+                    .font(.system(size: 10))
+                    .foregroundStyle(TrayPalette.muted)
+                Spacer(minLength: 0)
+                Button("Reset order") { store.resetDisplayOrder() }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(TrayPalette.muted)
+                    .help("Reset provider and account order; keep visibility choices")
+            }
+            .padding(.bottom, 3)
+
+            if groups.isEmpty {
+                Text("Connected accounts will appear here after a refresh.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(TrayPalette.muted)
+            }
+
+            ForEach(Array(groups.enumerated()), id: \.element.id) { entry in
+                let group = entry.element
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 5) {
+                        ProviderMark(provider: group.providerID, server: store.address)
+                        Toggle(isOn: Binding(
+                            get: { !store.displayPreferences.hiddenProviders.contains(group.id) },
+                            set: { store.setProviderVisible(group.id, visible: $0) }
+                        )) {
+                            Text(group.providerName)
+                                .font(.system(size: 11.5, weight: .semibold))
+                                .lineLimit(1)
+                        }
+                        .toggleStyle(.checkbox)
+                        .controlSize(.small)
+
+                        Spacer(minLength: 2)
+                        moveButton("chevron.up", "Move \(group.providerName) up",
+                                   disabled: entry.offset == 0) {
+                            store.moveProvider(group.id, by: -1)
+                        }
+                        moveButton("chevron.down", "Move \(group.providerName) down",
+                                   disabled: entry.offset == groups.count - 1) {
+                            store.moveProvider(group.id, by: 1)
+                        }
+                    }
+
+                    ForEach(Array(group.accounts.enumerated()), id: \.element.id) { item in
+                        let account = item.element
+                        HStack(spacing: 4) {
+                            Toggle(isOn: Binding(
+                                get: { !store.displayPreferences.hiddenAccounts.contains(QuotaDisplayPreferences.accountKey(account)) },
+                                set: { store.setAccountVisible(account, visible: $0) }
+                            )) {
+                                Text(account.name)
+                                    .font(.system(size: 10.5))
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                            }
+                            .toggleStyle(.checkbox)
+                            .controlSize(.small)
+                            .help(account.name)
+
+                            if !QuotaDisplayPreferences.hasMeasurableQuota(account) {
+                                Image(systemName: "minus.circle")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(TrayPalette.faint)
+                                    .help("No finite quota reported; hidden when the no-quota filter is enabled")
+                            }
+                            Spacer(minLength: 1)
+                            moveButton("chevron.up", "Move \(account.name) up",
+                                       disabled: item.offset == 0) {
+                                store.moveAccount(account, by: -1)
+                            }
+                            moveButton("chevron.down", "Move \(account.name) down",
+                                       disabled: item.offset == group.accounts.count - 1) {
+                                store.moveAccount(account, by: 1)
+                            }
+                        }
+                        .padding(.leading, 19)
+                    }
+                }
+                .padding(.vertical, 4)
+
+                if entry.offset < groups.count - 1 {
+                    Rectangle().fill(TrayPalette.border).frame(height: 1)
+                }
+            }
+        }
+    }
+
+    private func moveButton(_ symbol: String, _ title: String, disabled: Bool,
+                            action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(disabled ? TrayPalette.faint.opacity(0.4) : TrayPalette.muted)
+                .frame(width: 18, height: 18)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+        .help(title)
+        .accessibilityLabel(title)
     }
 }
 
@@ -435,13 +546,21 @@ private struct SettingsView: View {
                     .foregroundStyle(TrayPalette.muted)
 
                 sectionTitle("DISPLAY")
+                Toggle("Hide accounts without quota", isOn: $store.displayPreferences.hideWithoutQuota)
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .font(.system(size: 11.5))
                 Toggle("Show disabled accounts", isOn: $store.showDisabledAccounts)
                     .toggleStyle(.switch)
                     .controlSize(.small)
                     .font(.system(size: 11.5))
-                Text("Disabled accounts show their last cached quota when available.")
+                Text("Accounts with no reported finite quota are hidden by default. Empty providers disappear too. Disabled accounts remain optional.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(TrayPalette.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                sectionTitle("ORDER & VISIBILITY")
+                ArrangementSettings(store: store)
 
                 sectionTitle("AUTHENTICATION")
                 Text("Management API key override")
@@ -486,7 +605,7 @@ private struct SettingsView: View {
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(height: 475)
+        .frame(height: 470)
     }
 
     private func sectionTitle(_ value: String) -> some View {
