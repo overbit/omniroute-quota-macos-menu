@@ -28,6 +28,14 @@ final class QuotaStore: ObservableObject {
     var visibleProviderCount: Int { Set(visibleAccounts.map(\.providerName)).count }
     var lowestRemaining: Double? { accounts.filter(\.active).compactMap(\.lowestRemaining).min() }
 
+    var menuBarStatus: QuotaMenuStatus {
+        QuotaMenuStatus.evaluate(
+            accounts: accounts,
+            hasLoaded: lastUpdated != nil,
+            connectionUnavailable: errorMessage != nil
+        )
+    }
+
     func start() {
         guard polling == nil else { return }
         polling = Task { [weak self] in

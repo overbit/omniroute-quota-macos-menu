@@ -2,7 +2,7 @@
 
 A small, native **macOS 14+ menu-bar app** that shows the remaining quotas for every account connected to [OmniRoute](https://github.com/cheaper-inference/OmniRoute). Open the popover, check your session/weekly/daily limits and reset times, close it. No Dock icon, server supervision, analytics, or extra runtime.
 
-The interface follows the compact, dark quota list shown in the project reference: accounts grouped under each provider icon, colored quota bars, and short reset countdowns. The official OmniRoute menu-bar icon signals when any active, measurable quota drops below 20%. The app bundle uses OmniRoute's original macOS icon; provider logos come from your local OmniRoute server when available.
+The interface follows the compact, dark quota list shown in the project reference: accounts grouped under each provider icon, colored quota bars, and short reset countdowns. The official OmniRoute menu-bar icon updates automatically **even when its popover is closed**: normal icon for healthy quotas (50% or more), amber warning and lowest remaining percentage under 50%, and red warning and lowest percentage under 20%. Loading, missing quota data, and connection failures have distinct status indicators. Hover over the icon to identify the affected provider/account and the number of low accounts; disabled connections and unlimited quotas do not trigger warnings. The app bundle uses OmniRoute's original macOS icon; provider logos come from your local OmniRoute server when available.
 
 ## Install
 
@@ -28,7 +28,7 @@ For the usual local OmniRoute setup, the app can derive the CLI management token
 
 - `GET /api/providers` supplies all configured connections. Disabled accounts are hidden by default and can be shown using the persistent **Show disabled accounts** setting.
 - `GET /api/usage/provider-limits` supplies OmniRoute's **cached** per-connection quota data. The app does not probe provider usage endpoints directly.
-- Refreshes every 60 seconds while running, plus manual refresh. If a refresh fails, previously fetched quotas remain visible with a warning.
+- Refreshes every 60 seconds starting when the menu-bar icon appears, without requiring the popover to be opened, plus manual refresh. If a refresh fails, previously fetched quotas remain visible with a warning; the menu-bar indicator preserves last-known low quotas and shows a connection warning.
 - Standard session/weekly/daily/monthly windows are displayed. Providers that report quotas per model are consolidated by reset time using the **lowest remaining percentage**, so a quota never appears safer than its most constrained model.
 - A blank quota is shown as **Quota not available**, not a fabricated 100%. Disabled accounts show last cached quotas when present and an explicit **Disabled** label; these figures may be stale.
 
