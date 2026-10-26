@@ -1,10 +1,10 @@
 import Foundation
 
-/// The worst measurable quota across active accounts, for an at-a-glance menu-bar warning.
-/// Disabled accounts, unlimited windows, and missing quota data never count as zero or 100%.
+/// Worst measurable remaining quota among the configured monitoring selection.
+/// Unlimited and unavailable quotas do not count as 0% or 100%.
 public struct QuotaMenuStatus: Equatable, Sendable {
     public enum Severity: Equatable, Sendable {
-        case checking, unknown, healthy, low, critical
+        case staticIcon, checking, unknown, healthy, low, critical
     }
 
     public let severity: Severity
@@ -14,6 +14,7 @@ public struct QuotaMenuStatus: Equatable, Sendable {
     public let lowAccountCount: Int
     public let activeAccountCount: Int
     public let measuredAccountCount: Int
+    public let customSelection: Bool
     public let lowestIsStale: Bool
     public let connectionUnavailable: Bool
 
@@ -22,10 +23,20 @@ public struct QuotaMenuStatus: Equatable, Sendable {
     public static func evaluate(
         accounts: [QuotaAccount],
         hasLoaded: Bool,
-        connectionUnavailable: Bool
+        connectionUnavailable: Bool,
+        preferences: QuotaMenuPreferences = QuotaMenuPreferences()
     ) -> QuotaMenuStatus {
-        let active = accounts.filter(\.active)
-        let measured: [(account: QuotaAccount, remaining: Double)] = active.compactMap { account in
+        if preferences.mode == .staticIcon {
+            return QuotaMenuStatus(
+                severity: .staticIcon, lowestPercent: nil, lowestAccount: nil,
+                lowestProvider: nil, lowAccountCount: 0, activeAccountCount: 0,
+                measuredAccountCount: 0, customSelection: false,
+                lowestIsStale: false, connectionUnavailable: false
+            )
+        }
+
+        let monitored = preferences.monitoredAccounts(from: accounts)
+        let measured: [(account: QuotaAccount, remaining: Double)] = monitored.compactMap { account in
             guard let remaining = account.lowestRemaining else { return nil }
             return (account: account, remaining: remaining)
         }
@@ -49,8 +60,9 @@ public struct QuotaMenuStatus: Equatable, Sendable {
             lowestAccount: worst?.account.name,
             lowestProvider: worst?.account.providerName,
             lowAccountCount: measured.filter { $0.remaining < 50 }.count,
-            activeAccountCount: active.count,
+            activeAccountCount: monitored.count,
             measuredAccountCount: measured.count,
+            customSelection: preferences.scope == .selected,
             lowestIsStale: worst?.account.isStale ?? false,
             connectionUnavailable: connectionUnavailable
         )
@@ -60,12 +72,20 @@ public struct QuotaMenuStatus: Equatable, Sendable {
     public var description: String {
         let summary: String
         switch severity {
+        case .staticIcon:
+            return "OmniRoute static icon. Quota warnings are disabled in Settings."
         case .checking:
             summary = "Checking OmniRoute quotas."
         case .unknown:
-            summary = activeAccountCount == 0
-                ? "No active OmniRoute accounts."
-                : "No measurable quota data for active OmniRoute accounts."
+            if customSelection {
+                summary = activeAccountCount == 0
+                    ? "No accounts matched your menu-bar monitoring selection."
+                    : "No measurable quotas for the selected accounts."
+            } else {
+                summary = activeAccountCount == 0
+                    ? "No active OmniRoute accounts."
+                    : "No measurable quota data for active OmniRoute accounts."
+            }
         case .healthy, .low, .critical:
             let percent = lowestPercent ?? 0
             let account = lowestAccount ?? "unknown account"
@@ -82,11 +102,11 @@ public struct QuotaMenuStatus: Equatable, Sendable {
 
         var detail = summary
         if lowAccountCount > 0 {
-            detail += " \(lowAccountCount) active \(lowAccountCount == 1 ? "account" : "accounts") below 50%."
+            detail += " \(lowAccountCount) monitored \(lowAccountCount == 1 ? "account" : "accounts") below 50%."
         }
         let unavailableCount = activeAccountCount - measuredAccountCount
         if unavailableCount > 0 && measuredAccountCount > 0 {
-            detail += " \(unavailableCount) active \(unavailableCount == 1 ? "account has" : "accounts have") no reported quota."
+            detail += " \(unavailableCount) monitored \(unavailableCount == 1 ? "account has" : "accounts have") no reported quota."
         }
         if lowestIsStale {
             detail += " Lowest reading is cached and may be outdated."

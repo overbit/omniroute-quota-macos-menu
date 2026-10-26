@@ -95,6 +95,133 @@ final class QuotaCoreTests: XCTestCase {
         XCTAssertNil(OmniRouteEnvironment.apiKey(from: "OMNIROUTE_API_KEY='unterminated"))
     }
 
+    func testMenuBarPreferencesKeepExistingAllActiveBehavior() {
+        let accounts = [
+            QuotaAccount(id: "work", name: "Work", provider: "openai-codex", active: true,
+                         windows: [QuotaWindow(id: "wk", label: "wk", remainingPercent: 52, resetAt: nil)], isStale: false),
+            QuotaAccount(id: "paused", name: "Paused", provider: "kimi", active: false,
+                         windows: [QuotaWindow(id: "wk", label: "wk", remainingPercent: 0, resetAt: nil)], isStale: false),
+        ]
+        let prefs = QuotaMenuPreferences()
+        XCTAssertEqual(prefs.mode, .dynamic)
+        XCTAssertEqual(prefs.scope, .allActive)
+        XCTAssertEqual(prefs.monitoredAccounts(from: accounts).map(\.id), ["work"])
+        let status = QuotaMenuStatus.evaluate(accounts: accounts, hasLoaded: true,
+                                              connectionUnavailable: false, preferences: prefs)
+        XCTAssertEqual(status.severity, .healthy)
+        XCTAssertEqual(status.lowestPercent, 52)
+    }
+
+    func testStaticMenuBarSuppressesLowQuotaAndConnectionWarnings() {
+        var prefs = QuotaMenuPreferences()
+        prefs.mode = .staticIcon
+        let empty = QuotaMenuStatus.evaluate(accounts: [], hasLoaded: false,
+                                             connectionUnavailable: true, preferences: prefs)
+        XCTAssertEqual(empty.severity, .staticIcon)
+        XCTAssertFalse(empty.isLow)
+        XCTAssertFalse(empty.connectionUnavailable)
+        XCTAssertNil(empty.lowestPercent)
+        XCTAssertTrue(empty.description.contains("Quota warnings are disabled"))
+
+        let exhausted = QuotaAccount(id: "a", name: "Exhausted", provider: "kimi", active: true,
+                                     windows: [QuotaWindow(id: "wk", label: "wk", remainingPercent: 0, resetAt: nil)], isStale: false)
+        let staticWithZero = QuotaMenuStatus.evaluate(accounts: [exhausted], hasLoaded: true,
+                                                      connectionUnavailable: false, preferences: prefs)
+        XCTAssertEqual(staticWithZero.severity, .staticIcon)
+        XCTAssertFalse(staticWithZero.isLow)
+    }
+
+    func testDynamicMenuBarSelectsProvidersAndAccountsIndependentlyOfDisplayFilters() {
+        let openAI = QuotaAccount(id: "a", name: "main", provider: "openai-codex", active: true,
+                                  windows: [QuotaWindow(id: "wk", label: "wk", remainingPercent: 75, resetAt: nil)], isStale: false)
+        let disabled = QuotaAccount(id: "b", name: "disabled", provider: "openai", active: false,
+                                    windows: [QuotaWindow(id: "wk", label: "wk", remainingPercent: 0, resetAt: nil)], isStale: false)
+        let kimi = QuotaAccount(id: "c", name: "main", provider: "kimi", active: true,
+                                windows: [QuotaWindow(id: "wk", label: "wk", remainingPercent: 5, resetAt: nil)], isStale: false)
+        let accounts = [openAI, disabled, kimi]
+        var prefs = QuotaMenuPreferences()
+        prefs.scope = .selected
+
+        // With no selected accounts, 0% elsewhere must not trigger a warning.
+        XCTAssertEqual(QuotaMenuStatus.evaluate(accounts: accounts, hasLoaded: true,
+                                                  connectionUnavailable: false,
+                                                  preferences: prefs).severity, .unknown)
+
+        prefs.selectProvider("OpenAI", selected: true)
+        XCTAssertEqual(prefs.monitoredAccounts(from: accounts).map(\.id), ["a", "b"])
+        var status = QuotaMenuStatus.evaluate(accounts: accounts, hasLoaded: true,
+                                              connectionUnavailable: false, preferences: prefs)
+        XCTAssertEqual(status.severity, .critical)
+        XCTAssertEqual(status.lowestPercent, 0)
+        XCTAssertEqual(status.lowestAccount, "disabled")
+
+        prefs.selectProvider("OpenAI", selected: false)
+        prefs.selectAccount(openAI, selected: true)
+        XCTAssertEqual(prefs.monitoredAccounts(from: accounts).map(\.id), ["a"])
+        status = QuotaMenuStatus.evaluate(accounts: accounts, hasLoaded: true,
+                                          connectionUnavailable: false, preferences: prefs)
+        XCTAssertEqual(status.severity, .healthy)
+        XCTAssertEqual(status.lowestPercent, 75)
+
+        // A hidden account still counts for alerts; display settings never filter alerts.
+        var display = QuotaDisplayPreferences()
+        display.hiddenAccounts.insert(QuotaDisplayPreferences.accountKey(kimi))
+        prefs.selectAccount(kimi, selected: true)
+        XCTAssertFalse(display.visibleGroups(from: accounts, includeDisabled: false)
+                        .flatMap(\.accounts).contains(where: { $0.id == kimi.id }))
+        status = QuotaMenuStatus.evaluate(accounts: accounts, hasLoaded: true,
+                                          connectionUnavailable: false, preferences: prefs)
+        XCTAssertEqual(status.lowestAccount, kimi.name)
+        XCTAssertEqual(status.lowestPercent, 5)
+    }
+
+    func testMenuBarProviderSelectionIncludesFutureConnectionsAndHandlesMissingQuota() {
+        var prefs = QuotaMenuPreferences()
+        prefs.scope = .selected
+        prefs.selectProvider("Kimi", selected: true)
+        let unknown = QuotaAccount(id: "without", name: "missing", provider: "kimi", active: false,
+                                   windows: [], isStale: false)
+        let unlimited = QuotaAccount(id: "unlimited", name: "unlimited", provider: "kimi", active: true,
+                                     windows: [QuotaWindow(id: "mo", label: "mo", remainingPercent: 100,
+                                                           resetAt: nil, unlimited: true)], isStale: false)
+        let full = QuotaAccount(id: "new", name: "new", provider: "kimi", active: true,
+                                windows: [QuotaWindow(id: "wk", label: "wk", remainingPercent: 23, resetAt: nil)], isStale: false)
+        let others = QuotaAccount(id: "other", name: "other", provider: "openai", active: true,
+                                  windows: [QuotaWindow(id: "wk", label: "wk", remainingPercent: 1, resetAt: nil)], isStale: false)
+        let accounts = [unknown, unlimited, full, others]
+        let status = QuotaMenuStatus.evaluate(accounts: accounts, hasLoaded: true,
+                                              connectionUnavailable: false, preferences: prefs)
+        XCTAssertEqual(prefs.monitoredAccounts(from: accounts).map(\.id), ["without", "unlimited", "new"])
+        XCTAssertEqual(status.severity, .low)
+        XCTAssertEqual(status.lowestPercent, 23)
+        XCTAssertEqual(status.measuredAccountCount, 1)
+        XCTAssertTrue(status.description.contains("2 monitored accounts have no reported quota"))
+    }
+
+    func testMenuBarPreferencesPersistModeScopeAndSelectionAcrossRenames() throws {
+        let account = QuotaAccount(id: "unique", name: "main", provider: "openai-codex",
+                                   active: true, windows: [], isStale: false)
+        var prefs = QuotaMenuPreferences()
+        prefs.mode = .staticIcon
+        prefs.scope = .selected
+        prefs.selectProvider("Kimi", selected: true)
+        prefs.selectAccount(account, selected: true)
+
+        let persisted = try JSONDecoder().decode(QuotaMenuPreferences.self,
+                                                 from: JSONEncoder().encode(prefs))
+        XCTAssertEqual(persisted, prefs)
+        let renamed = QuotaAccount(id: "unique", name: "renamed", provider: "openai-codex",
+                                   active: false, windows: [], isStale: true)
+        XCTAssertTrue(persisted.monitors(renamed))
+        XCTAssertFalse(persisted.monitors(QuotaAccount(id: "other", name: "renamed", provider: "openai-codex",
+                                                       active: true, windows: [], isStale: false)))
+        prefs.selectAccount(account, selected: false)
+        XCTAssertFalse(prefs.monitors(renamed))
+        prefs.mode = .dynamic
+        XCTAssertTrue(prefs.monitors(QuotaAccount(id: "new", name: "new", provider: "kimi",
+                                                  active: true, windows: [], isStale: false)))
+    }
+
     func testMenuBarStatusUsesWorstActiveAccountNotDisabledOrUnlimited() {
         let accounts = [
             QuotaAccount(id: "a", name: "Work", provider: "openai", active: true, windows: [
