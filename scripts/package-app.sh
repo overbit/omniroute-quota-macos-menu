@@ -21,6 +21,7 @@ mkdir -p "$APP/Contents/Resources"
 cp "$ROOT/Assets/OmniRoute/icon.icns" "$APP/Contents/Resources/icon.icns"
 cp "$ROOT/Assets/OmniRoute/icon.png" "$APP/Contents/Resources/icon.png"
 cp "$ROOT/Assets/OmniRoute/tray-icon.png" "$APP/Contents/Resources/tray-icon.png"
+cp "$ROOT/Assets/OmniRoute/tray-icon-22.png" "$APP/Contents/Resources/tray-icon-22.png"
 mkdir -p "$APP/Contents/Resources/providers"
 cp "$ROOT/Assets/ProviderIcons/"*.svg "$APP/Contents/Resources/providers/"
 

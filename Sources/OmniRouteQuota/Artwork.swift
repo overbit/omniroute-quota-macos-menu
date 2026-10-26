@@ -8,8 +8,11 @@ import QuotaCore
 @MainActor
 enum OmniRouteArtwork {
     static let statusBar: NSImage? = {
-        guard let url = Bundle.main.url(forResource: "tray-icon", withExtension: "png"),
+        // OmniRouteTray's dedicated 22 px status glyph is purpose-built for the
+        // menu bar. Display it at exactly 11 pt on Retina (no fuzzy resampling).
+        guard let url = Bundle.main.url(forResource: "tray-icon-22", withExtension: "png"),
               let image = NSImage(contentsOf: url) else { return nil }
+        image.size = NSSize(width: 11, height: 11)
         image.isTemplate = true
         return image
     }()
