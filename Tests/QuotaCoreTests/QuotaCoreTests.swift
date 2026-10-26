@@ -268,3 +268,123 @@ final class QuotaCoreTests: XCTestCase {
         XCTAssertEqual(accounts[0].windows[0].roundedRemaining, 100)
     }
 }
+
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+
+/// Mock only the local OmniRoute HTTP boundary, not the client's parsing.
+private final class StubOmniRouteURLProtocol: URLProtocol {
+    static var responder: ((URLRequest) -> (Int, Data))?
+    static var requests: [(String, String)] = []
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        guard let requestURL = request.url, let responder = Self.responder else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+            return
+        }
+        Self.requests.append((request.httpMethod ?? "GET", requestURL.path))
+        let (status, data) = responder(request)
+        let response = HTTPURLResponse(url: requestURL, statusCode: status, httpVersion: "HTTP/1.1",
+                                       headerFields: ["Content-Type": "application/json"])!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: data)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+}
+
+final class QuotaRefreshTests: XCTestCase {
+    private func data(_ json: String) -> Data { Data(json.utf8) }
+
+    override func tearDown() {
+        StubOmniRouteURLProtocol.responder = nil
+        StubOmniRouteURLProtocol.requests = []
+        super.tearDown()
+    }
+
+    func testManualRefreshUpdatesDisabledAccountWithoutEnablingIt() async throws {
+        let providers = data(#"[{"id":"enabled","name":"Active","provider":"kimi","isActive":true},{"id":"disabled","name":"Paused","provider":"openai-codex","isActive":false}]"#)
+        let before = data(#"{"caches":{"enabled":{"quotas":{"session":{"remainingPercentage":45}}},"disabled":{"quotas":{"session":{"remainingPercentage":9}}}}}"#)
+        let after = data(#"{"caches":{"enabled":{"quotas":{"session":{"remainingPercentage":91}}},"disabled":{"quotas":{"session":{"remainingPercentage":74}}}}}"#)
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [StubOmniRouteURLProtocol.self]
+        let client = OmniRouteClient(session: URLSession(configuration: config))
+        var updated = false
+        StubOmniRouteURLProtocol.responder = { request in
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer sk-test")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "x-omniroute-cli-token"), "token")
+            switch (request.httpMethod ?? "", request.url?.path ?? "") {
+            case ("GET", "/api/providers"):
+                return (200, providers)
+            case ("POST", "/api/usage/provider-limits"):
+                return (200, self.data(#"{"errors":{}}"#))
+            case ("GET", "/api/usage/disabled"):
+                updated = true
+                return (200, self.data(#"{"quotas":{"session":{"remainingPercentage":74}}}"#))
+            case ("GET", "/api/usage/provider-limits"):
+                return (200, updated ? after : before)
+            default:
+                XCTFail("Unexpected endpoint: \(request.httpMethod ?? "") \(request.url?.path ?? "")")
+                return (404, self.data("{}"))
+            }
+        }
+
+        let credentials = OmniRouteCredentials(apiKey: "sk-test", cliToken: "token")
+        let result = try await client.refreshAll(from: OmniRouteEndpoint("127.0.0.1:20128"), credentials: credentials)
+        XCTAssertTrue(updated)
+        XCTAssertNil(result.warning)
+        XCTAssertEqual(result.accounts.first(where: { $0.id == "disabled" })?.windows.first?.roundedRemaining, 74)
+        XCTAssertEqual(result.accounts.first(where: { $0.id == "enabled" })?.windows.first?.roundedRemaining, 91)
+        XCTAssertEqual(result.accounts.first(where: { $0.id == "disabled" })?.active, false)
+        XCTAssertEqual(StubOmniRouteURLProtocol.requests.map { "\($0.0) \($0.1)" }, [
+            "GET /api/providers", "POST /api/usage/provider-limits",
+            "GET /api/usage/disabled", "GET /api/usage/provider-limits"
+        ])
+    }
+
+    func testUnsupportedDisabledAccountDoesNotBlockOtherCacheUpdates() async throws {
+        let providers = data(#"[{"id":"disabled","provider":"lm-studio","isActive":false},{"id":"enabled","provider":"kimi","isActive":true}]"#)
+        let limits = data(#"{"caches":{"enabled":{"quotas":{"weekly":{"remainingPercentage":50}}}}}"#)
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [StubOmniRouteURLProtocol.self]
+        let client = OmniRouteClient(session: URLSession(configuration: config))
+        StubOmniRouteURLProtocol.responder = { request in
+            switch (request.httpMethod ?? "", request.url?.path ?? "") {
+            case ("GET", "/api/providers"): return (200, providers)
+            case ("POST", "/api/usage/provider-limits"): return (200, self.data(#"{"errors":{}}"#))
+            case ("GET", "/api/usage/disabled"): return (400, self.data(#"{"error":"Unsupported"}"#))
+            case ("GET", "/api/usage/provider-limits"): return (200, limits)
+            default: return (404, self.data("{}"))
+            }
+        }
+        let result = try await client.refreshAll(from: OmniRouteEndpoint("localhost"), credentials: .init())
+        XCTAssertNil(result.warning)
+        XCTAssertEqual(result.accounts.count, 2)
+        XCTAssertEqual(result.accounts.first(where: { $0.id == "enabled" })?.windows.first?.roundedRemaining, 50)
+        XCTAssertTrue(result.accounts.first(where: { $0.id == "disabled" })?.windows.isEmpty ?? false)
+    }
+
+    func testAutomaticCachedLoadDoesNotTriggerLiveRequests() async throws {
+        let providers = data(#"[{"id":"disabled","provider":"kimi","isActive":false}]"#)
+        let limits = data(#"{"caches":{"disabled":{"quotas":{"session":{"remainingPercentage":38}}}}}"#)
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [StubOmniRouteURLProtocol.self]
+        let client = OmniRouteClient(session: URLSession(configuration: config))
+        StubOmniRouteURLProtocol.responder = { request in
+            switch request.url?.path ?? "" {
+            case "/api/providers": return (200, providers)
+            case "/api/usage/provider-limits": return (200, limits)
+            default: return (404, self.data("{}"))
+            }
+        }
+        let result = try await client.load(from: OmniRouteEndpoint("localhost"), credentials: .init())
+        XCTAssertEqual(result.first?.windows.first?.roundedRemaining, 38)
+        XCTAssertEqual(StubOmniRouteURLProtocol.requests.count, 2)
+        XCTAssertTrue(StubOmniRouteURLProtocol.requests.allSatisfy { $0.0 == "GET" })
+    }
+}
