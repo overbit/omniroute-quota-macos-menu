@@ -538,6 +538,87 @@ private struct ArrangementSettings: View {
     }
 }
 
+/// The alert selection is intentionally separate from popover visibility and
+/// always lists every configured connection (including disabled or hidden).
+private struct MenuBarMonitorSettings: View {
+    @ObservedObject var store: QuotaStore
+
+    private var groups: [QuotaProviderGroup] { store.settingsGroups }
+    private var preferences: QuotaMenuPreferences { store.menuPreferences }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text("Providers include every account, even disabled or future connections. For a smaller selection, check individual accounts instead.")
+                .font(.system(size: 10))
+                .foregroundStyle(TrayPalette.muted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            ForEach(groups) { group in
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        ProviderMark(provider: group.providerID, server: store.address)
+                        Toggle(isOn: Binding(
+                            get: { store.menuPreferences.selectedProviders.contains(group.id) },
+                            set: { store.monitorProvider(group.id, selected: $0) }
+                        )) {
+                            Text(group.providerName)
+                                .font(.system(size: 11.5, weight: .semibold))
+                                .lineLimit(1)
+                        }
+                        .toggleStyle(.checkbox)
+                        .controlSize(.small)
+                        .help("Monitor all \(group.providerName) accounts")
+                    }
+
+                    ForEach(group.accounts) { account in
+                        HStack(spacing: 5) {
+                            Toggle(isOn: Binding(
+                                get: { store.menuPreferences.monitors(account) },
+                                set: { store.monitorAccount(account, selected: $0) }
+                            )) {
+                                Text(account.name)
+                                    .font(.system(size: 10.5))
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                            }
+                            .toggleStyle(.checkbox)
+                            .controlSize(.small)
+                            .disabled(store.menuPreferences.selectedProviders.contains(group.id))
+                            .help(account.name)
+
+                            if !account.active {
+                                Text("OFF")
+                                    .font(.system(size: 9, weight: .medium))
+                                    .foregroundStyle(TrayPalette.faint)
+                                    .help("Disabled accounts can be monitored using their cached quotas")
+                            }
+                        }
+                        .padding(.leading, 20)
+                    }
+                }
+                .padding(.vertical, 3)
+                if group.id != groups.last?.id {
+                    Rectangle().fill(TrayPalette.border).frame(height: 1)
+                }
+            }
+
+            if groups.isEmpty {
+                Text("Configured accounts will appear after connecting to OmniRoute.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(TrayPalette.muted)
+            } else if preferences.monitoredAccounts(from: store.accounts).isEmpty {
+                Text("Select at least one account or provider to enable quota warnings.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(TrayPalette.warning)
+            } else {
+                Text("\(preferences.monitoredAccounts(from: store.accounts).count) accounts monitored")
+                    .font(.system(size: 10))
+                    .foregroundStyle(TrayPalette.faint)
+            }
+        }
+    }
+}
+
 private struct SettingsView: View {
     @ObservedObject var store: QuotaStore
     @State private var address: String
@@ -577,6 +658,36 @@ private struct SettingsView: View {
                 Text("Only localhost is permitted. Your quota data stays on this Mac.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(TrayPalette.muted)
+
+                sectionTitle("MENU BAR ICON")
+                Picker("Menu-bar icon mode", selection: $store.menuPreferences.mode) {
+                    Text("Static").tag(QuotaMenuMode.staticIcon)
+                    Text("Dynamic").tag(QuotaMenuMode.dynamic)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+
+                if store.menuPreferences.mode == .staticIcon {
+                    Text("Always show the OmniRoute icon, without quota percentages or warnings.")
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(TrayPalette.muted)
+                } else {
+                    Picker("Monitor", selection: $store.menuPreferences.scope) {
+                        Text("All active").tag(QuotaMonitorScope.allActive)
+                        Text("Custom").tag(QuotaMonitorScope.selected)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+
+                    if store.menuPreferences.scope == .selected {
+                        MenuBarMonitorSettings(store: store)
+                    } else {
+                        Text("Alerts reflect the lowest quota across active accounts. Use Custom to choose specific providers, accounts, or disabled connections.")
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(TrayPalette.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
 
                 sectionTitle("DISPLAY")
                 Toggle("Hide accounts without quota", isOn: $store.displayPreferences.hideWithoutQuota)
