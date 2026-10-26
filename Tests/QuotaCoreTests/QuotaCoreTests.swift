@@ -66,6 +66,16 @@ final class QuotaCoreTests: XCTestCase {
         XCTAssertEqual(shown.first(where: { !$0.active })?.windows.first?.roundedRemaining, 31)
     }
 
+    func testReadsManagementKeyFromDotEnvWithoutLosingHashInsideQuotes() {
+        XCTAssertEqual(OmniRouteEnvironment.apiKey(from: "OTHER=hello\nOMNIROUTE_API_KEY=sk-valid # comment"), "sk-valid")
+        XCTAssertEqual(OmniRouteEnvironment.apiKey(from: "OMNIROUTE_API_KEY='sk-abc#def' # note"), "sk-abc#def")
+        XCTAssertEqual(OmniRouteEnvironment.apiKey(from: "OMNIROUTE_API_KEY=sk-abc#def"), "sk-abc#def")
+        XCTAssertEqual(OmniRouteEnvironment.apiKey(from: #"OMNIROUTE_API_KEY="sk-quoted""#), "sk-quoted")
+        XCTAssertNil(OmniRouteEnvironment.apiKey(from: "OMNIROUTE_API_KEY_BACKUP=bad\n#OMNIROUTE_API_KEY=bad"))
+        XCTAssertNil(OmniRouteEnvironment.apiKey(from: "OMNIROUTE_API_KEY= "))
+        XCTAssertNil(OmniRouteEnvironment.apiKey(from: "OMNIROUTE_API_KEY='unterminated"))
+    }
+
     func testStaleEntryAndClamp() throws {
         let accounts = try QuotaParser.parse(providers: data(#"[{"id":"a","provider":"kimi"}]"#),
             limits: data(#"{"caches":{"a":{"fetchedAt":"2026-10-26T06:00:00Z","quotas":{"window_5h":{"remainingPercentage":120}}}}}"#), now: now)

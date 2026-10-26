@@ -1,6 +1,7 @@
 #if os(macOS)
 import CryptoKit
 import Foundation
+import QuotaCore
 import Security
 
 // User-supplied overrides never leave the Mac. OmniRoute's local CLI token is
@@ -38,6 +39,15 @@ enum LocalCredentials {
         addition[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         let status = SecItemAdd(addition as CFDictionary, nil)
         guard status == errSecSuccess else { throw CredentialError.keychain(status) }
+    }
+
+    /// Read on every refresh so rotating the local key needs no app restart.
+    /// Do not persist, log, or show the key taken from OmniRoute's .env file.
+    static func automaticAPIKey() -> String {
+        let file = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".omniroute/.env")
+        guard let contents = try? String(contentsOf: file, encoding: .utf8) else { return "" }
+        return OmniRouteEnvironment.apiKey(from: contents) ?? ""
     }
 
     static func automaticToken() -> String {

@@ -45,7 +45,7 @@ final class QuotaStore: ObservableObject {
         do {
             let endpoint = try OmniRouteEndpoint(address)
             let credentials = OmniRouteCredentials(
-                apiKey: apiKey,
+                apiKey: apiKey.isEmpty ? LocalCredentials.automaticAPIKey() : apiKey,
                 cliToken: tokenOverride.isEmpty ? LocalCredentials.automaticToken() : tokenOverride)
             let result = try await client.load(from: endpoint, credentials: credentials)
             accounts = result
@@ -58,11 +58,13 @@ final class QuotaStore: ObservableObject {
 
     func save(address: String, apiKey: String, tokenOverride: String) throws {
         _ = try OmniRouteEndpoint(address)
-        try LocalCredentials.save(apiKey.trimmingCharacters(in: .whitespacesAndNewlines), account: "apiKey")
-        try LocalCredentials.save(tokenOverride.trimmingCharacters(in: .whitespacesAndNewlines), account: "cliToken")
+        let cleanKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanToken = tokenOverride.trimmingCharacters(in: .whitespacesAndNewlines)
+        try LocalCredentials.save(cleanKey, account: "apiKey")
+        try LocalCredentials.save(cleanToken, account: "cliToken")
         self.address = address.trimmingCharacters(in: .whitespacesAndNewlines)
-        self.apiKey = apiKey
-        self.tokenOverride = tokenOverride
+        self.apiKey = cleanKey
+        self.tokenOverride = cleanToken
         UserDefaults.standard.set(self.address, forKey: "omnirouteAddress")
         showingSettings = false
         Task { await refresh() }

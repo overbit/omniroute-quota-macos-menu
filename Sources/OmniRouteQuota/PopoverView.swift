@@ -374,10 +374,14 @@ private struct SettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             VStack(alignment: .leading, spacing: 5) {
-                Text("Management API key · optional")
+                Text("Management API key override · optional")
                     .font(.system(size: 11, weight: .medium))
-                SecureField("Leave blank if not required", text: $apiKey)
+                SecureField("Automatically read from ~/.omniroute/.env", text: $apiKey)
                     .textFieldStyle(.roundedBorder)
+                Text("If empty, uses OMNIROUTE_API_KEY from the local .env file when available. Overrides are stored in Keychain.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Palette.muted)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             VStack(alignment: .leading, spacing: 5) {
                 Text("CLI token override · optional")
