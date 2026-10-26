@@ -309,7 +309,7 @@ final class QuotaRefreshTests: XCTestCase {
 
     func testManualRefreshUpdatesDisabledAccountWithoutEnablingIt() async throws {
         let providers = data(#"[{"id":"enabled","name":"Active","provider":"kimi","isActive":true},{"id":"disabled","name":"Paused","provider":"openai-codex","isActive":false}]"#)
-        let before = data(#"{"caches":{"enabled":{"quotas":{"session":{"remainingPercentage":45}}},"disabled":{"quotas":{"session":{"remainingPercentage":9}}}}}"#)
+        let before = data(#"{"caches":{"enabled":{"quotas":{"session":{"remainingPercentage":45}}}}}"#)
         let after = data(#"{"caches":{"enabled":{"quotas":{"session":{"remainingPercentage":91}}},"disabled":{"quotas":{"session":{"remainingPercentage":74}}}}}"#)
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [StubOmniRouteURLProtocol.self]
@@ -367,6 +367,31 @@ final class QuotaRefreshTests: XCTestCase {
         XCTAssertEqual(result.accounts.count, 2)
         XCTAssertEqual(result.accounts.first(where: { $0.id == "enabled" })?.windows.first?.roundedRemaining, 50)
         XCTAssertTrue(result.accounts.first(where: { $0.id == "disabled" })?.windows.isEmpty ?? false)
+    }
+
+    func testDisabledStillRefreshesWhenBulkSyncFails() async throws {
+        let providers = data(#"[{"id":"enabled","provider":"kimi","isActive":true},{"id":"disabled","provider":"openai-codex","isActive":false}]"#)
+        let cache = data(#"{"caches":{"disabled":{"quotas":{"session":{"remainingPercentage":63}}}}}"#)
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [StubOmniRouteURLProtocol.self]
+        let client = OmniRouteClient(session: URLSession(configuration: config))
+        StubOmniRouteURLProtocol.responder = { request in
+            switch (request.httpMethod ?? "", request.url?.path ?? "") {
+            case ("GET", "/api/providers"): return (200, providers)
+            case ("POST", "/api/usage/provider-limits"): return (500, self.data(#"{"error":"sync failed"}"#))
+            case ("GET", "/api/usage/disabled"): return (200, self.data(#"{"quotas":{"session":{"remainingPercentage":63}}}"#))
+            case ("GET", "/api/usage/provider-limits"): return (200, cache)
+            default:
+                XCTFail("Unexpected refresh request")
+                return (404, self.data("{}"))
+            }
+        }
+        let result = try await client.refreshAll(from: OmniRouteEndpoint("localhost"), credentials: .init())
+        XCTAssertTrue(result.bulkFailed)
+        XCTAssertNotNil(result.warning)
+        XCTAssertEqual(result.accounts.first(where: { $0.id == "disabled" })?.windows.first?.roundedRemaining, 63)
+        XCTAssertEqual(result.accounts.first(where: { $0.id == "disabled" })?.active, false)
+        XCTAssertTrue(StubOmniRouteURLProtocol.requests.contains { $0.0 == "GET" && $0.1 == "/api/usage/disabled" })
     }
 
     func testAutomaticCachedLoadDoesNotTriggerLiveRequests() async throws {
