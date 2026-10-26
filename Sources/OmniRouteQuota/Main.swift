@@ -18,32 +18,6 @@ struct OmniRouteQuotaApp: App {
     }
 }
 
-/// The official OmniRoute mark has eight outer dots and a detailed central
-/// symbol. At 10pt the central raster detail merges into a dark blur, so use a
-/// clean vector rendering of the eight-dot ring at native display scale.
-private struct OmniRouteMenuMark: Shape {
-    func path(in rect: CGRect) -> Path {
-        let side = min(rect.width, rect.height)
-        let orbit = side * 0.34
-        let diameter = side * 0.18
-        let center = CGPoint(x: rect.midX, y: rect.midY)
-
-        var dots = Path()
-        for index in 0..<8 {
-            let angle = Double(index) * .pi / 4 - .pi / 2
-            let x = center.x + CGFloat(cos(angle)) * orbit
-            let y = center.y + CGFloat(sin(angle)) * orbit
-            dots.addEllipse(in: CGRect(
-                x: x - diameter / 2,
-                y: y - diameter / 2,
-                width: diameter,
-                height: diameter
-            ))
-        }
-        return dots
-    }
-}
-
 /// A tiny branded mark at rest, plus an unambiguous percentage when any active
 /// account is low. No bitmap scaling or redundant alert icon is necessary.
 private struct MenuBarQuotaIndicator: View {
@@ -62,7 +36,7 @@ private struct MenuBarQuotaIndicator: View {
         HStack(spacing: 2) {
             OmniRouteMenuMark()
                 .fill(tint)
-                .frame(width: 10, height: 10)
+                .frame(width: OmniRouteMenuMark.pointSize, height: OmniRouteMenuMark.pointSize)
                 .accessibilityHidden(true)
 
             if status.isLow {
