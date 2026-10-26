@@ -9,22 +9,30 @@ struct OmniRouteQuotaApp: App {
         MenuBarExtra {
             PopoverView(store: store)
         } label: {
-            HStack(spacing: 3) {
-                if let icon = OmniRouteArtwork.statusBar {
-                    Image(nsImage: icon)
-                        .resizable()
-                        .renderingMode(.template)
-                        .interpolation(.high)
-                        .frame(width: 18, height: 18)
-                } else {
-                    Image(systemName: "circle.hexagongrid.fill")
+            ZStack(alignment: .bottomTrailing) {
+                Group {
+                    if let icon = OmniRouteArtwork.statusBar {
+                        Image(nsImage: icon)
+                            .resizable()
+                            .renderingMode(.template)
+                            .interpolation(.high)
+                            .scaledToFit()
+                    } else {
+                        Image(systemName: "circle.hexagongrid.fill")
+                            .resizable()
+                            .scaledToFit()
+                    }
                 }
+                .frame(width: 13, height: 13)
+
                 if store.lowestRemaining.map({ $0 < 20 }) == true {
-                    Image(systemName: "exclamationmark.circle.fill")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.red)
+                    Circle()
+                        .fill(.red)
+                        .frame(width: 5, height: 5)
+                        .offset(x: 1, y: 1)
                 }
             }
+            .frame(width: 15, height: 15)
             .accessibilityLabel("OmniRoute quotas")
         }
         .menuBarExtraStyle(.window)
