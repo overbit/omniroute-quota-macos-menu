@@ -41,13 +41,15 @@ OmniRouteTray's Tauri runtime, server supervision, update manager, trends, or co
   expresses **remaining** quota even when displaying \`% used\`.
 - SF system fonts; percentages and reset times use tabular numerals.
 - Unavailable values are labeled, not rendered as 100% quota.
-- Native status-bar mark uses OmniRouteTray's dedicated **22px template glyph**
-  displayed at exactly **11pt** on Retina rather than resampling the large
-  dotted OmniRoute desktop tray icon. Healthy status occupies only the glyph.
-  Below 50%, the glyph and a compact numeric remaining percentage are amber;
-  below 20%, they turn red. Do not append a second warning triangle. Missing
-  data uses a single question mark; connection failures use a small exclamation
-  when no low-quota number is already shown.
+- Native menu-bar mark is a **10-point vector rendering** of the eight-dot
+  outer ring in OmniRoute's original artwork; fine central bitmap detail is
+  intentionally omitted so the dots stay separate at 1x and 2x scale.
+  Healthy status occupies only the mark, with automatic light/dark contrast.
+  Below 50%, the mark and a compact numeric remaining percentage are amber;
+  below 20%, they turn red. The number communicates risk even if the OS
+  suppresses custom colors. No extra triangle or large background icon.
+  Missing data uses a small question mark; connection failures use an
+  exclamation when there is no low-quota number to show.
 
 ## Interaction and edge cases
 

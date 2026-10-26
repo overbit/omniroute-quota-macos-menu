@@ -3,20 +3,10 @@ import AppKit
 import Foundation
 import QuotaCore
 
-/// Desktop artwork comes from OmniRoute; the native-sized template status-bar
-/// glyph comes from OmniRouteTray for legibility in light and dark menu bars.
+/// Full-resolution OmniRoute app and provider assets. The status-bar mark is
+/// drawn as a lightweight vector in Main.swift to avoid unreadable raster detail.
 @MainActor
 enum OmniRouteArtwork {
-    static let statusBar: NSImage? = {
-        // OmniRouteTray's dedicated 22 px status glyph is purpose-built for the
-        // menu bar. Display it at exactly 11 pt on Retina (no fuzzy resampling).
-        guard let url = Bundle.main.url(forResource: "tray-icon-22", withExtension: "png"),
-              let image = NSImage(contentsOf: url) else { return nil }
-        image.size = NSSize(width: 11, height: 11)
-        image.isTemplate = true
-        return image
-    }()
-
     static let header: NSImage? = {
         guard let url = Bundle.main.url(forResource: "icon", withExtension: "png") else { return nil }
         return NSImage(contentsOf: url)
