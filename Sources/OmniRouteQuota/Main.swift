@@ -18,8 +18,34 @@ struct OmniRouteQuotaApp: App {
     }
 }
 
-/// Stays icon-only when quotas are healthy; expands just enough to show the
-/// lowest remaining percentage as soon as any active account runs low.
+/// The official OmniRoute mark has eight outer dots and a detailed central
+/// symbol. At 10pt the central raster detail merges into a dark blur, so use a
+/// clean vector rendering of the eight-dot ring at native display scale.
+private struct OmniRouteMenuMark: Shape {
+    func path(in rect: CGRect) -> Path {
+        let side = min(rect.width, rect.height)
+        let orbit = side * 0.34
+        let diameter = side * 0.18
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+
+        var dots = Path()
+        for index in 0..<8 {
+            let angle = Double(index) * .pi / 4 - .pi / 2
+            let x = center.x + CGFloat(cos(angle)) * orbit
+            let y = center.y + CGFloat(sin(angle)) * orbit
+            dots.addEllipse(in: CGRect(
+                x: x - diameter / 2,
+                y: y - diameter / 2,
+                width: diameter,
+                height: diameter
+            ))
+        }
+        return dots
+    }
+}
+
+/// A tiny branded mark at rest, plus an unambiguous percentage when any active
+/// account is low. No bitmap scaling or redundant alert icon is necessary.
 private struct MenuBarQuotaIndicator: View {
     let status: QuotaMenuStatus
 
@@ -34,44 +60,32 @@ private struct MenuBarQuotaIndicator: View {
 
     var body: some View {
         HStack(spacing: 2) {
-            Group {
-                if let icon = OmniRouteArtwork.statusBar {
-                    // NSImage already has its 11 pt intrinsic size. Do not
-                    // rescale the 22 px artwork and blur its fine silhouette.
-                    Image(nsImage: icon)
-                        .renderingMode(.template)
-                        .interpolation(.none)
-                } else {
-                    Image(systemName: "circle.hexagongrid.fill")
-                        .font(.system(size: 11))
-                }
-            }
-            .frame(width: 11, height: 11)
-            .foregroundStyle(tint)
+            OmniRouteMenuMark()
+                .fill(tint)
+                .frame(width: 10, height: 10)
+                .accessibilityHidden(true)
 
             if status.isLow {
-                // The percentage *is* the warning. An extra triangle makes
-                // the status item large and harder to read at menu-bar scale.
                 Text("\(status.lowestPercent ?? 0)%")
                     .font(.system(size: 10, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(tint)
             } else if status.connectionUnavailable {
-                Image(systemName: "exclamationmark")
-                    .font(.system(size: 9, weight: .bold))
+                Text("!")
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
                     .foregroundStyle(.red)
             } else if status.severity == .unknown {
-                Image(systemName: "questionmark")
-                    .font(.system(size: 9, weight: .medium))
+                Text("?")
+                    .font(.system(size: 9, weight: .semibold, design: .rounded))
                     .foregroundStyle(.secondary)
             }
         }
         .frame(height: 12)
         .fixedSize(horizontal: true, vertical: false)
         .help(status.description)
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel(status.description)
     }
-
 }
 #else
 @main
