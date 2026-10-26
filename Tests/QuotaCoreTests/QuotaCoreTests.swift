@@ -66,6 +66,24 @@ final class QuotaCoreTests: XCTestCase {
         XCTAssertEqual(shown.first(where: { !$0.active })?.windows.first?.roundedRemaining, 31)
     }
 
+    func testGroupsAccountsByProviderEvenWhenInterleaved() {
+        let cached = QuotaWindow(id: "weekly", label: "wk", remainingPercent: 31, resetAt: nil)
+        let accounts = [
+            QuotaAccount(id: "1", name: "Work", provider: "openai-codex", active: true, windows: [], isStale: false),
+            QuotaAccount(id: "2", name: "Main", provider: "kimi", active: true, windows: [], isStale: false),
+            QuotaAccount(id: "3", name: "Personal", provider: "openai", active: false, windows: [cached], isStale: true)
+        ]
+
+        let groups = QuotaProviderGroup.grouped(accounts)
+        XCTAssertEqual(groups.map(\.providerName), ["Kimi", "OpenAI"])
+        XCTAssertEqual(groups.first(where: { $0.id == "OpenAI" })?.accounts.map(\.id), ["1", "3"])
+        XCTAssertEqual(groups.first(where: { $0.id == "OpenAI" })?.accounts.last?.windows.first?.roundedRemaining, 31)
+        XCTAssertEqual(
+            QuotaProviderGroup.grouped(QuotaVisibility.visible(accounts, includeDisabled: false))
+                .first(where: { $0.id == "OpenAI" })?.accounts.map(\.id), ["1"])
+        XCTAssertTrue(QuotaProviderGroup.grouped([]).isEmpty)
+    }
+
     func testReadsManagementKeyFromDotEnvWithoutLosingHashInsideQuotes() {
         XCTAssertEqual(OmniRouteEnvironment.apiKey(from: "OTHER=hello\nOMNIROUTE_API_KEY=sk-valid # comment"), "sk-valid")
         XCTAssertEqual(OmniRouteEnvironment.apiKey(from: "OMNIROUTE_API_KEY='sk-abc#def' # note"), "sk-abc#def")

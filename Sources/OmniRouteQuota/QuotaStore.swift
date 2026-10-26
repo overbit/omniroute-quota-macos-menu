@@ -25,7 +25,7 @@ final class QuotaStore: ObservableObject {
     var providerCount: Int { Set(accounts.map(\.provider)).count }
     var activeCount: Int { accounts.filter(\.active).count }
     var visibleAccounts: [QuotaAccount] { QuotaVisibility.visible(accounts, includeDisabled: showDisabledAccounts) }
-    var visibleProviderCount: Int { Set(visibleAccounts.map(\.provider)).count }
+    var visibleProviderCount: Int { Set(visibleAccounts.map(\.providerName)).count }
     var lowestRemaining: Double? { accounts.filter(\.active).compactMap(\.lowestRemaining).min() }
 
     func start() {

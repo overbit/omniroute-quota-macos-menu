@@ -21,11 +21,17 @@ private enum Palette {
 struct PopoverView: View {
     @ObservedObject var store: QuotaStore
 
+    private var providerGroups: [QuotaProviderGroup] {
+        QuotaProviderGroup.grouped(store.visibleAccounts)
+    }
+
     private var listHeight: CGFloat {
-        let rows = store.visibleAccounts.reduce(CGFloat(24)) { result, account in
-            result + 52 + CGFloat(max(1, account.windows.count)) * 25
+        let rows = providerGroups.reduce(CGFloat(0)) { total, group in
+            total + 46 + group.accounts.reduce(CGFloat(0)) { subtotal, account in
+                subtotal + 33 + CGFloat(max(1, account.windows.count)) * 25
+            }
         }
-        return min(500, max(180, rows))
+        return min(500, max(124, rows))
     }
 
     var body: some View {
@@ -116,14 +122,15 @@ struct PopoverView: View {
                 }
 
                 ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(store.visibleAccounts) { account in
-                            if account.id != store.visibleAccounts.first?.id {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(providerGroups) { group in
+                            if group.id != providerGroups.first?.id {
                                 Rectangle().fill(Palette.line)
                                     .frame(height: 1)
-                                    .padding(.leading, 49)
+                                    .padding(.leading, 38)
+                                    .padding(.vertical, 3)
                             }
-                            AccountRow(account: account, address: store.address)
+                            ProviderSection(group: group, address: store.address)
                         }
                     }
                     .padding(.horizontal, 17)
@@ -225,17 +232,42 @@ struct PopoverView: View {
     }
 }
 
-private struct AccountRow: View {
-    let account: QuotaAccount
+private struct ProviderSection: View {
+    let group: QuotaProviderGroup
     let address: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 9) {
-                ProviderMark(providerID: account.provider, providerName: account.providerName,
+                ProviderMark(providerID: group.providerID, providerName: group.providerName,
                              address: address)
+                Text(group.providerName)
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .lineLimit(1)
+                Spacer(minLength: 6)
+                if group.accounts.count > 1 {
+                    Text("\(group.accounts.count) accounts")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(Palette.muted)
+                }
+            }
+            ForEach(group.accounts) { account in
+                AccountRow(account: account)
+            }
+        }
+        .padding(.vertical, 8)
+    }
+}
+
+private struct AccountRow: View {
+    let account: QuotaAccount
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 8) {
                 Text(account.name)
                     .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(account.active ? Palette.foreground : Palette.muted)
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Spacer(minLength: 3)
@@ -249,16 +281,13 @@ private struct AccountRow: View {
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(Palette.amber)
                 }
-                Text(account.providerName)
-                    .font(.system(size: 10))
-                    .foregroundStyle(Palette.muted)
-                    .lineLimit(1)
             }
+            .padding(.leading, 34)
             if account.windows.isEmpty {
                 Text(account.active ? "Quota not available" : "No cached quota available")
                     .font(.system(size: 11))
                     .foregroundStyle(Palette.muted)
-                    .padding(.leading, 32)
+                    .padding(.leading, 34)
                     .frame(height: 24, alignment: .leading)
             } else {
                 VStack(spacing: 7) {
@@ -268,7 +297,7 @@ private struct AccountRow: View {
                 }
             }
         }
-        .padding(.vertical, 11)
+        .padding(.vertical, 5)
     }
 }
 

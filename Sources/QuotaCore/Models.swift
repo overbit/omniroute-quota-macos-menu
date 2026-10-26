@@ -56,6 +56,23 @@ public enum QuotaVisibility {
     }
 }
 
+/// A provider section containing all matching connections and their quota windows.
+public struct QuotaProviderGroup: Identifiable, Equatable, Sendable {
+    public let id: String
+    public let providerID: String
+    public let accounts: [QuotaAccount]
+
+    public var providerName: String { id }
+
+    public static func grouped(_ accounts: [QuotaAccount]) -> [QuotaProviderGroup] {
+        let byProvider = Dictionary(grouping: accounts, by: \.providerName)
+        return byProvider.keys.sorted().compactMap { name in
+            guard let members = byProvider[name], let first = members.first else { return nil }
+            return QuotaProviderGroup(id: name, providerID: first.provider, accounts: members)
+        }
+    }
+}
+
 public enum QuotaError: LocalizedError, Equatable {
     case invalidEndpoint
     case invalidProviders

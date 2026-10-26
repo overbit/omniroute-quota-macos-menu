@@ -2,15 +2,15 @@
 
 ## Purpose and density
 
-A dark, single-surface **Operate** interface: one-click check, no navigation stack or dashboard. The UI is approximately 410 points wide, shows compact individual account rows, and caps the scroll region at 500 points. Actions live in the header/footer; the primary surface is quota information.
+A dark, single-surface **Operate** interface: one-click check, no navigation stack or dashboard. The UI is approximately 410 points wide, groups compact account rows by provider, and caps the scroll region at 500 points. Actions live in the header/footer; the primary surface is quota information.
 
 ## Visual language
 
 - Native SF system typography, 11–15 pt. Figures use tabular rounded numerals; account names stay truncatable.
 - Neutral graphite `#171A1D`-family background, off-white primary text, muted cool gray metadata, hairline separators.
-- Quota fill is semantic: green at 50% or more, amber below 50%, red below 20%. The menubar icon warns at below 20%.
+- Quota fill is semantic: green at 50% or more, amber below 50%, red below 20%. The 13-point menu-bar glyph warns with a small dot below 20% without increasing its width.
 - Original OmniRoute artwork anchors the macOS app icon, menu-bar status item, and popover header. Provider marks use official SVGs from the local OmniRoute server with monogram fallbacks; no third-party icon CDN. No nested cards, elevation effects, or unnecessary ornament.
-- Geometry: each quota line has a 32-pt period label, flexible bar, 40-pt percent and 53-pt countdown; each account displays one title line and its quota lines.
+- Geometry: each quota line has a 32-pt period label, flexible bar, 40-pt percent and 53-pt countdown. Provider headings own the icon and label; nested account names and disabled/stale markers identify each connection while quota bars keep the full row width.
 
 ## Interaction and states
 
