@@ -14,6 +14,20 @@ final class QuotaStore: ObservableObject {
         didSet { UserDefaults.standard.set(showDisabledAccounts, forKey: "showDisabledAccounts") }
     }
 
+    @Published var displayPreferences: QuotaDisplayPreferences = {
+        guard let data = UserDefaults.standard.data(forKey: "quotaDisplayPreferences"),
+              let saved = try? JSONDecoder().decode(QuotaDisplayPreferences.self, from: data) else {
+            return QuotaDisplayPreferences()
+        }
+        return saved
+    }() {
+        didSet {
+            if let data = try? JSONEncoder().encode(displayPreferences) {
+                UserDefaults.standard.set(data, forKey: "quotaDisplayPreferences")
+            }
+        }
+    }
+
     private let client = OmniRouteClient(session: URLSession(configuration: .ephemeral))
     private var polling: Task<Void, Never>?
 
@@ -30,8 +44,12 @@ final class QuotaStore: ObservableObject {
     var providerCount: Int { Set(accounts.map(\.provider)).count }
     var activeProviderCount: Int { Set(accounts.filter(\.active).map(\.provider)).count }
     var activeCount: Int { accounts.filter(\.active).count }
-    var visibleAccounts: [QuotaAccount] { QuotaVisibility.visible(accounts, includeDisabled: showDisabledAccounts) }
-    var visibleProviderCount: Int { Set(visibleAccounts.map(\.providerName)).count }
+    var settingsGroups: [QuotaProviderGroup] { displayPreferences.orderedGroups(from: accounts) }
+    var visibleGroups: [QuotaProviderGroup] {
+        displayPreferences.visibleGroups(from: accounts, includeDisabled: showDisabledAccounts)
+    }
+    var visibleAccounts: [QuotaAccount] { visibleGroups.flatMap(\.accounts) }
+    var visibleProviderCount: Int { visibleGroups.count }
     var lowestRemaining: Double? { accounts.filter(\.active).compactMap(\.lowestRemaining).min() }
 
     var menuBarStatus: QuotaMenuStatus {
@@ -82,6 +100,39 @@ final class QuotaStore: ObservableObject {
         UserDefaults.standard.set(self.address, forKey: "omnirouteAddress")
         showingSettings = false
         Task { await refresh() }
+    }
+
+    func setProviderVisible(_ providerID: String, visible: Bool) {
+        var updated = displayPreferences
+        if visible { updated.hiddenProviders.remove(providerID) }
+        else { updated.hiddenProviders.insert(providerID) }
+        displayPreferences = updated
+    }
+
+    func setAccountVisible(_ account: QuotaAccount, visible: Bool) {
+        var updated = displayPreferences
+        let key = QuotaDisplayPreferences.accountKey(account)
+        if visible { updated.hiddenAccounts.remove(key) }
+        else { updated.hiddenAccounts.insert(key) }
+        displayPreferences = updated
+    }
+
+    func moveProvider(_ providerID: String, by offset: Int) {
+        var updated = displayPreferences
+        guard updated.moveProvider(providerID, by: offset, among: accounts) else { return }
+        displayPreferences = updated
+    }
+
+    func moveAccount(_ account: QuotaAccount, by offset: Int) {
+        var updated = displayPreferences
+        guard updated.moveAccount(account, by: offset, among: accounts) else { return }
+        displayPreferences = updated
+    }
+
+    func resetDisplayOrder() {
+        var updated = displayPreferences
+        updated.resetOrder()
+        displayPreferences = updated
     }
 
     func openDashboard() {
