@@ -41,8 +41,13 @@ OmniRouteTray's Tauri runtime, server supervision, update manager, trends, or co
   expresses **remaining** quota even when displaying \`% used\`.
 - SF system fonts; percentages and reset times use tabular numerals.
 - Unavailable values are labeled, not rendered as 100% quota.
-- Native status-bar OmniRoute mark is 13pt with a dynamic low-quota warning
-  below 50% and a critical warning below 20%.
+- Native status-bar mark uses OmniRouteTray's dedicated **22px template glyph**
+  displayed at exactly **11pt** on Retina rather than resampling the large
+  dotted OmniRoute desktop tray icon. Healthy status occupies only the glyph.
+  Below 50%, the glyph and a compact numeric remaining percentage are amber;
+  below 20%, they turn red. Do not append a second warning triangle. Missing
+  data uses a single question mark; connection failures use a small exclamation
+  when no low-quota number is already shown.
 
 ## Interaction and edge cases
 
@@ -67,6 +72,10 @@ OmniRouteTray's Tauri runtime, server supervision, update manager, trends, or co
   clearly marked OFF; stale readings get an independent warning.
 - Header/footer remain fixed while usage scrolls. VoiceOver labels name each
   quota window and percentage. Offline and empty states have retry/recovery.
+- The footer's refresh button explicitly reloads **OmniRoute's server-side
+  cached** quotas, not provider endpoints. It shows a spinner while requesting
+  data, then displays the last successful `Checked HH:mm` timestamp or a
+  `Refresh failed` message. The HTTP request bypasses URLSession's own cache.
 - The independent app uses only local OmniRoute API data; features such as
   OmniRouteTray's cache hit-rate and server version are intentionally omitted
   unless those facts can be retrieved reliably.

@@ -3,8 +3,8 @@ import AppKit
 import Foundation
 import QuotaCore
 
-/// Original icon artwork from OmniRoute. Use AppKit's template rendering for
-/// the status bar so the white glyph adapts to the macOS menu-bar appearance.
+/// Desktop artwork comes from OmniRoute; the native-sized template status-bar
+/// glyph comes from OmniRouteTray for legibility in light and dark menu bars.
 @MainActor
 enum OmniRouteArtwork {
     static let statusBar: NSImage? = {

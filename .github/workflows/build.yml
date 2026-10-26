@@ -18,6 +18,17 @@ jobs:
         run: swift test
       - name: Build menu-bar app
         run: ZIP=1 bash scripts/package-app.sh
+      - name: Verify native-sized menu-bar icon
+        run: |
+          swift -e '
+          import AppKit
+          let path = "dist/OmniRouteQuota.app/Contents/Resources/tray-icon-22.png"
+          guard let image = NSImage(contentsOfFile: path), image.isValid,
+                let bitmap = image.representations.compactMap({ $0 as? NSBitmapImageRep }).first,
+                bitmap.pixelsWide == 22, bitmap.pixelsHigh == 22 else {
+              fatalError("Expected OmniRouteTray 22px status glyph inside the app bundle")
+          }
+          '
       - name: Verify provider icons render on macOS
         run: |
           swift -e '
