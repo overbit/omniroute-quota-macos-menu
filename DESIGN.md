@@ -41,15 +41,17 @@ OmniRouteTray's Tauri runtime, server supervision, update manager, trends, or co
   expresses **remaining** quota even when displaying \`% used\`.
 - SF system fonts; percentages and reset times use tabular numerals.
 - Unavailable values are labeled, not rendered as 100% quota.
-- Native menu-bar mark is a **10-point vector rendering** of the eight-dot
-  outer ring in OmniRoute's original artwork; fine central bitmap detail is
-  intentionally omitted so the dots stay separate at 1x and 2x scale.
-  Healthy status occupies only the mark, with automatic light/dark contrast.
-  Below 50%, the mark and a compact numeric remaining percentage are amber;
-  below 20%, they turn red. The number communicates risk even if the OS
-  suppresses custom colors. No extra triangle or large background icon.
-  Missing data uses a small question mark; connection failures use an
-  exclamation when there is no low-quota number to show.
+- Native menu-bar mark is a **14-point AppKit template image** with 1× and
+  2× pixel representations of OmniRoute's eight-dot ring. This is a native
+  `NSImage` rather than a SwiftUI `Shape`: some MenuBarExtra labels fail to
+  paint arbitrary shapes. The dots are thick enough to remain visible at
+  system menu-bar scale, with no blurry center or redundant warning triangle.
+  The template image automatically contrasts with light/dark menu bars.
+  Below 50%, the mark and a numeric lowest-remaining percentage are amber;
+  below 20%, they turn red. Missing data uses a question mark; connection
+  failures use an exclamation when no low-quota value is present.
+  CI validates actual opaque pixels for all eight dots at 1× and 2×.
+
 
 ## Interaction and edge cases
 
