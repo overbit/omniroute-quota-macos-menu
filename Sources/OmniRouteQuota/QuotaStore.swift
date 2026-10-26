@@ -28,6 +28,7 @@ final class QuotaStore: ObservableObject {
 
     var connected: Bool { lastUpdated != nil && errorMessage == nil }
     var providerCount: Int { Set(accounts.map(\.provider)).count }
+    var activeProviderCount: Int { Set(accounts.filter(\.active).map(\.provider)).count }
     var activeCount: Int { accounts.filter(\.active).count }
     var visibleAccounts: [QuotaAccount] { QuotaVisibility.visible(accounts, includeDisabled: showDisabledAccounts) }
     var visibleProviderCount: Int { Set(visibleAccounts.map(\.providerName)).count }

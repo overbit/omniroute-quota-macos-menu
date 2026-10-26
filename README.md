@@ -2,7 +2,7 @@
 
 A small, native **macOS 14+ menu-bar app** that shows the remaining quotas for every account connected to [OmniRoute](https://github.com/cheaper-inference/OmniRoute). Open the popover, check your session/weekly/daily limits and reset times, close it. No Dock icon, server supervision, analytics, or extra runtime.
 
-The interface follows the compact, dark quota list shown in the project reference: accounts grouped under each provider icon, colored quota bars, and short reset countdowns. The official OmniRoute menu-bar icon updates automatically **even when its popover is closed**: normal icon for healthy quotas (50% or more), amber warning and lowest remaining percentage under 50%, and red warning and lowest percentage under 20%. Loading, missing quota data, and connection failures have distinct status indicators. Hover over the icon to identify the affected provider/account and the number of low accounts; disabled connections and unlimited quotas do not trigger warnings. The app bundle uses OmniRoute's original macOS icon; provider logos come from your local OmniRoute server when available.
+The popover follows [OmniRouteTray](https://github.com/zoispag/omniroute-tray)'s actual source UI: a **320-point dark popover**, one-line status header, provider/account status strip, **USAGE** heading with persistent **% left / % used** control, tightly packed provider-grouped account rows, four-column quota bars, and a fixed compact footer. Provider branding is bundled for offline use. This utility does not supervise OmniRoute or reproduce OmniRouteTray's cost and update features. The official OmniRoute menu-bar icon updates automatically **even when its popover is closed**: normal icon for healthy quotas (50% or more), amber warning and lowest remaining percentage under 50%, and red warning and lowest percentage under 20%. Loading, missing quota data, and connection failures have distinct status indicators. Hover over the icon to identify the affected provider/account and the number of low accounts; disabled connections and unlimited quotas do not trigger warnings. The app bundle uses OmniRoute's original macOS icon; provider logos come from your local OmniRoute server when available.
 
 ## Install
 
@@ -42,3 +42,7 @@ This is an independent companion app, not an official OmniRoute product.
 ## Artwork
 
 The packaged application reuses the official OmniRoute desktop (`icon.icns`, `icon.png`) and menu-bar (`tray-icon.png`) images from `electron/assets/` in [cheaper-inference/OmniRoute](https://github.com/cheaper-inference/OmniRoute). Their license notice is preserved in `Assets/OmniRoute/LICENSE`. Provider icons are requested only from your running local OmniRoute server at `/providers/{id}.svg`; if no matching image is available, a compact monogram is used. This companion app is not affiliated with or endorsed by OmniRoute.
+
+### UI reference
+
+The popover was adapted from OmniRouteTray's MIT-licensed [CSS](https://github.com/zoispag/omniroute-tray/blob/master/src/styles.css) and [usage renderer](https://github.com/zoispag/omniroute-tray/blob/master/src/main.js) using native SwiftUI rather than the upstream Tauri webview. The visual tokens, 320-point width, account/bars hierarchy, percentage toggle and compact footer follow the upstream code. Bundled provider marks and license notes are in `Assets/ProviderIcons/`.

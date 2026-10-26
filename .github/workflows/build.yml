@@ -18,6 +18,17 @@ jobs:
         run: swift test
       - name: Build menu-bar app
         run: ZIP=1 bash scripts/package-app.sh
+      - name: Verify provider icons render on macOS
+        run: |
+          swift -e '
+          import AppKit
+          for name in ["claude", "codex", "antigravity", "opencode", "github-copilot", "kimi"] {
+              let path = "dist/OmniRouteQuota.app/Contents/Resources/providers/\(name).svg"
+              guard let image = NSImage(contentsOfFile: path), image.isValid else {
+                  fatalError("Provider icon did not render: \(path)")
+              }
+          }
+          '
       - name: Upload app archive
         uses: actions/upload-artifact@v4
         with:

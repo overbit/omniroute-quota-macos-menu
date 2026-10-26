@@ -1,21 +1,59 @@
 # UI design contract
 
-## Purpose and density
+## Source of truth
 
-A dark, single-surface **Operate** interface: one-click check, no navigation stack or dashboard. The UI is approximately 410 points wide, groups compact account rows by provider, and caps the scroll region at 500 points. Actions live in the header/footer; the primary surface is quota information.
+The quota popover replicates the **visual hierarchy, dimensions, spacing, controls,
+and color tokens** of [OmniRouteTray](https://github.com/zoispag/omniroute-tray),
+particularly its \`src/styles.css\`, \`src/main.js\` (\`paintRateLimits()\`), and
+\`index.html\`. The user's supplied OmniRouteTray screenshot is the visual target.
 
-## Visual language
+This remains a standalone, native SwiftUI quota viewer. It does not replicate
+OmniRouteTray's Tauri runtime, server supervision, update manager, trends, or costs.
 
-- Native SF system typography, 11–15 pt. Figures use tabular rounded numerals; account names stay truncatable.
-- Neutral graphite `#171A1D`-family background, off-white primary text, muted cool gray metadata, hairline separators.
-- Quota fill is semantic: green at 50% or more, amber below 50%, red below 20%. The 13-point official menu-bar glyph stays compact and neutral for healthy readings; below 50% an amber warning symbol and the worst active account's percentage appear, turning red below 20%. Unavailable, loading, and connection failure indicators are distinct, including when cached low data is still available. The indicator updates without opening the popover.
-- Original OmniRoute artwork anchors the macOS app icon, menu-bar status item, and popover header. Provider marks use official SVGs from the local OmniRoute server with monogram fallbacks; no third-party icon CDN. No nested cards, elevation effects, or unnecessary ornament.
-- Geometry: each quota line has a 32-pt period label, flexible bar, 40-pt percent and 53-pt countdown. Provider headings own the icon and label; nested account names and disabled/stale markers identify each connection while quota bars keep the full row width.
+## Dimensions and rhythm
 
-## Interaction and states
+- **320-point** popover width; content height follows its data and caps at
+  **510 points**, scrolling between a fixed header and footer.
+- Header: green/amber/red 9-point status dot, bold 15-point OmniRoute, 11-point
+  running state, on one baseline; 13/16-point padding.
+- Status strip: 11-point muted "active/configured providers · accounts"; no
+  invented cache rate or server version.
+- Usage heading: spaced 10.5-point "USAGE" and a small, outlined, persistent
+  **% left / % used** button.
+- Each account: inline 16-point brand mark (bundled official/OmniRouteTray SVG),
+  12-point bold account name, then compact rows. One account follows the next
+  within the provider group, without repeated section headings or cards.
+- Each quota row is a four-column grid:
+  **22-point window label / flexible 7-point bar / 34-point percentage /
+  44-point reset countdown**, 7-point gaps and 5-point row separation.
+- Groups preserve provider grouping and get modest 12-point vertical spacing.
+- Fixed footer: small app name, click-to-open local port chip, three
+  28-point outlined actions (refresh, open router, settings).
 
-- Click menu-bar icon to open; popover remains native and closes on focus loss.
-- Background refresh every 60 seconds; manual refresh via footer.
-- Settings replace the quota content in the same popover and allow local URL/auth configuration. A persistent **Show disabled accounts** switch reveals inactive connections without requesting new upstream quota data; the default is off.
-- Offline shows actionable retry/settings. Partial failures retain last good figures and add a warning. Inactive connections keep their last cached quota if available, and are labeled Disabled; no missing data is treated as full quota.
-- Support VoiceOver through labeled buttons and combined quota rows.
+## Color and type
+
+- Reproduce OmniRouteTray dark CSS palette: background \`#1c1c1e\`,
+  raised \`#2c2c2e\`, border/track \`#38383a\`, foreground \`#f5f5f7\`,
+  muted \`#a1a1aa\`.
+- Green \`#22c55e\`, amber \`#f59e0b\`, red \`#ef4444\`; quota bar color
+  expresses **remaining** quota even when displaying \`% used\`.
+- SF system fonts; percentages and reset times use tabular numerals.
+- Unavailable values are labeled, not rendered as 100% quota.
+- Native status-bar OmniRoute mark is 13pt with a dynamic low-quota warning
+  below 50% and a critical warning below 20%.
+
+## Interaction and edge cases
+
+- Clicking the status item opens the popover; the view stays readable with
+  many providers and long account names (middle truncation and hover title).
+- The quota-mode toggle persists across launches.
+- Settings live in the **footer**, unlike the previous oversized header gear.
+  It contains local address, optional key overrides, disabled-account display,
+  and a Quit action.
+- Disabled accounts remain optional, retain any last cached quota, and are
+  clearly marked OFF; stale readings get an independent warning.
+- Header/footer remain fixed while usage scrolls. VoiceOver labels name each
+  quota window and percentage. Offline and empty states have retry/recovery.
+- The independent app uses only local OmniRoute API data; features such as
+  OmniRouteTray's cache hit-rate and server version are intentionally omitted
+  unless those facts can be retrieved reliably.
