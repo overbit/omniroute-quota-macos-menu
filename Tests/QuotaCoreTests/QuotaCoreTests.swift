@@ -94,6 +94,80 @@ final class QuotaCoreTests: XCTestCase {
         XCTAssertNil(OmniRouteEnvironment.apiKey(from: "OMNIROUTE_API_KEY='unterminated"))
     }
 
+    func testMenuBarStatusUsesWorstActiveAccountNotDisabledOrUnlimited() {
+        let accounts = [
+            QuotaAccount(id: "a", name: "Work", provider: "openai", active: true, windows: [
+                QuotaWindow(id: "week", label: "wk", remainingPercent: 81, resetAt: nil),
+                QuotaWindow(id: "session", label: "sess", remainingPercent: 35, resetAt: nil)
+            ], isStale: false),
+            QuotaAccount(id: "b", name: "Personal", provider: "kimi", active: true, windows: [
+                QuotaWindow(id: "session", label: "sess", remainingPercent: 8.9, resetAt: nil),
+                QuotaWindow(id: "unlimited", label: "other", remainingPercent: 0, resetAt: nil, unlimited: true)
+            ], isStale: false),
+            QuotaAccount(id: "c", name: "Disabled", provider: "anthropic", active: false, windows: [
+                QuotaWindow(id: "week", label: "wk", remainingPercent: 0, resetAt: nil)
+            ], isStale: false)
+        ]
+
+        let status = QuotaMenuStatus.evaluate(accounts: accounts, hasLoaded: true, connectionUnavailable: false)
+        XCTAssertEqual(status.severity, .critical)
+        XCTAssertEqual(status.lowestPercent, 8)
+        XCTAssertEqual(status.lowestAccount, "Personal")
+        XCTAssertEqual(status.lowestProvider, "Kimi")
+        XCTAssertEqual(status.lowAccountCount, 2) // Accounts, not quota windows.
+        XCTAssertEqual(status.activeAccountCount, 2)
+        XCTAssertEqual(status.measuredAccountCount, 2)
+        XCTAssertTrue(status.description.contains("Critical quota: 8%"))
+    }
+
+    func testMenuBarStatusThresholds() {
+        func status(_ remaining: Double) -> QuotaMenuStatus {
+            let account = QuotaAccount(id: "1", name: "Main", provider: "kimi", active: true, windows: [
+                QuotaWindow(id: "w", label: "wk", remainingPercent: remaining, resetAt: nil)
+            ], isStale: false)
+            return QuotaMenuStatus.evaluate(accounts: [account], hasLoaded: true, connectionUnavailable: false)
+        }
+
+        XCTAssertEqual(status(100).severity, .healthy)
+        XCTAssertEqual(status(50).severity, .healthy)
+        XCTAssertEqual(status(49.9).severity, .low)
+        XCTAssertEqual(status(49.9).lowestPercent, 49)
+        XCTAssertEqual(status(20).severity, .low)
+        XCTAssertEqual(status(19.9).severity, .critical)
+        XCTAssertEqual(status(0).lowestPercent, 0)
+    }
+
+    func testMenuBarStatusHandlesLoadingUnknownAndConnectionLoss() {
+        let empty = [QuotaAccount]()
+        XCTAssertEqual(QuotaMenuStatus.evaluate(accounts: empty, hasLoaded: false, connectionUnavailable: false).severity, .checking)
+        XCTAssertEqual(QuotaMenuStatus.evaluate(accounts: empty, hasLoaded: true, connectionUnavailable: false).severity, .unknown)
+
+        let withoutNumbers = QuotaAccount(id: "1", name: "Local", provider: "lm-studio", active: true, windows: [
+            QuotaWindow(id: "unlimited", label: "mo", remainingPercent: 0, resetAt: nil, unlimited: true)
+        ], isStale: false)
+        let unknown = QuotaMenuStatus.evaluate(accounts: [withoutNumbers], hasLoaded: true, connectionUnavailable: false)
+        XCTAssertEqual(unknown.severity, .unknown)
+        XCTAssertNil(unknown.lowestPercent)
+
+        let offline = QuotaMenuStatus.evaluate(accounts: empty, hasLoaded: false, connectionUnavailable: true)
+        XCTAssertEqual(offline.severity, .unknown)
+        XCTAssertTrue(offline.connectionUnavailable)
+        XCTAssertTrue(offline.description.contains("connection unavailable"))
+    }
+
+    func testMenuBarStatusPreservesLastLowQuotaDuringRefreshError() {
+        let account = QuotaAccount(id: "1", name: "Work", provider: "openai", active: true, windows: [
+            QuotaWindow(id: "w", label: "wk", remainingPercent: 12, resetAt: nil)
+        ], isStale: true)
+        let status = QuotaMenuStatus.evaluate(accounts: [account], hasLoaded: true, connectionUnavailable: true)
+        XCTAssertEqual(status.severity, .critical)
+        XCTAssertEqual(status.lowestPercent, 12)
+        XCTAssertTrue(status.connectionUnavailable)
+        XCTAssertTrue(status.lowestIsStale)
+        XCTAssertTrue(status.description.contains("Last known quotas"))
+        XCTAssertTrue(status.description.contains("cached"))
+    }
+
     func testStaleEntryAndClamp() throws {
         let accounts = try QuotaParser.parse(providers: data(#"[{"id":"a","provider":"kimi"}]"#),
             limits: data(#"{"caches":{"a":{"fetchedAt":"2026-10-26T06:00:00Z","quotas":{"window_5h":{"remainingPercentage":120}}}}}"#), now: now)
