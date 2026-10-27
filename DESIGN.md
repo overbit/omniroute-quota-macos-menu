@@ -34,11 +34,19 @@ OmniRouteTray's Tauri runtime, server supervision, update manager, trends, or co
 
 ## Color and type
 
-- Reproduce OmniRouteTray dark CSS palette: background \`#1c1c1e\`,
-  raised \`#2c2c2e\`, border/track \`#38383a\`, foreground \`#f5f5f7\`,
-  muted \`#a1a1aa\`.
-- Green \`#22c55e\`, amber \`#f59e0b\`, red \`#ef4444\`; quota bar color
-  expresses **remaining** quota even when displaying \`% used\`.
+- **Graphite** is the default and preserves OmniRouteTray's dark CSS palette:
+  background #1c1c1e, raised #2c2c2e, border/track #38383a,
+  foreground #f5f5f7, muted #a1a1aa. Critical red is slightly brighter to
+  keep small labels readable on raised surfaces.
+- **Midnight**: cool navy dark, blue focus accents. **Forest**: muted
+  evergreen, verdant focus accents. **Dusk**: deep violet with lavender
+  focus accents. **Paper**: warm light surfaces with deep readable text.
+  Each remaps the same semantic surface, text, border, focus, good, warning,
+  and critical roles, without changing layout or quota calculations.
+- Quota bar color always expresses remaining quota, even in % used mode.
+  Semantic success, warning, and critical colors maintain at least
+  4.5:1 contrast against background and elevated surfaces in all five themes.
+  Paper explicitly uses darkened status hues and light native controls.
 - SF system fonts; percentages and reset times use tabular numerals.
 - Unavailable values are labeled, not rendered as 100% quota.
 - Native menu-bar mark is a **14-point AppKit template image** with 1× and
@@ -59,6 +67,13 @@ OmniRouteTray's Tauri runtime, server supervision, update manager, trends, or co
 - Clicking the status item opens the popover; the view stays readable with
   many providers and long account names (middle truncation and hover title).
 - The quota-mode toggle persists across launches.
+- **Settings → Theme** has five immediately selectable, accessible miniature
+  palette previews (Graphite, Midnight, Forest, Dusk, Paper). Selection is
+  persisted using AppStorage("quotaTheme") and propagated via a SwiftUI
+  environment palette to every popover/account/quota/settings subview.
+  Native toggle/field appearance follows the selected light/dark scheme.
+  The status-bar glyph remains a macOS-controlled template image and is
+  not recolored by the popover theme. Existing installations remain Graphite.
 - **Menu Bar Icon** settings independently choose **Static / Dynamic**.
   Dynamic supports **All active** (the backward-compatible default) or
   **Custom** selection of provider groups and individual connections.

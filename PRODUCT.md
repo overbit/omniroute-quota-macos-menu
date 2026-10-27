@@ -20,7 +20,7 @@ OmniRoute runs locally at port 20128 unless configured otherwise. The app is lau
 
 ## Constraints
 
-Compact dark popover modeled on the supplied screenshot; minimal vertical and horizontal overhead; multiple accounts per provider; persistent custom provider/account order and manual visibility; hide entries lacking measurable quota by default while retaining them in Settings; optional visibility of disabled connections and cached quotas; safe read-only local API access using the local management API key when available; official OmniRoute app and menu-bar artwork; a dynamic at-a-glance menu-bar warning based on the worst measurable active-account quota, excluding disabled accounts and unlimited windows; clear loading, empty, stale, and offline states.
+Compact themeable popover modeled on the supplied screenshot, with five persistent presets and the original dark palette as default; minimal vertical and horizontal overhead; multiple accounts per provider; persistent custom provider/account order and manual visibility; hide entries lacking measurable quota by default while retaining them in Settings; optional visibility of disabled connections and cached quotas; safe read-only local API access using the local management API key when available; official OmniRoute app and menu-bar artwork; a dynamic at-a-glance menu-bar warning based on the worst measurable active-account quota, excluding disabled accounts and unlimited windows; clear loading, empty, stale, and offline states.
 
 ## Evidence on Hand
 
