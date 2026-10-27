@@ -1,0 +1,41 @@
+name: macOS build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-package:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run parser tests
+        run: swift test
+      - name: Build menu-bar app
+        run: ZIP=1 bash scripts/package-app.sh
+      - name: Verify compact vector menu-bar glyph
+        run: |
+          swiftc Sources/OmniRouteQuota/MenuBarMark.swift scripts/verify-menu-bar-mark.swift -o "$RUNNER_TEMP/verify-menu-bar-mark"
+          "$RUNNER_TEMP/verify-menu-bar-mark"
+      - name: Verify provider icons render on macOS
+        run: |
+          swift -e '
+          import AppKit
+          for name in ["claude", "codex", "antigravity", "opencode", "github-copilot", "kimi"] {
+              let path = "dist/OmniRouteQuota.app/Contents/Resources/providers/\(name).svg"
+              guard let image = NSImage(contentsOfFile: path), image.isValid else {
+                  fatalError("Provider icon did not render: \(path)")
+              }
+          }
+          '
+      - name: Upload ad-hoc test archive (not notarized)
+        uses: actions/upload-artifact@v4
+        with:
+          name: OmniRouteQuota-UNNOTARIZED-test-build
+          path: dist/OmniRouteQuota-macos.zip
+          if-no-files-found: error
