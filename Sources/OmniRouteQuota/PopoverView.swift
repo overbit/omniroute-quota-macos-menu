@@ -3,26 +3,12 @@ import AppKit
 import QuotaCore
 import SwiftUI
 
-/// Matches OmniRouteTray's dark 320-point popover and four-column quota grid.
-/// See DESIGN.md for the source reference and intentionally omitted server controls.
-private enum TrayPalette {
-    static let background = Color(red: 28/255, green: 28/255, blue: 30/255)
-    static let raised = Color(red: 44/255, green: 44/255, blue: 46/255)
-    static let border = Color(red: 56/255, green: 56/255, blue: 58/255)
-    static let text = Color(red: 245/255, green: 245/255, blue: 247/255)
-    static let muted = Color(red: 161/255, green: 161/255, blue: 170/255)
-    static let faint = Color(red: 147/255, green: 152/255, blue: 163/255)
-    static let good = Color(red: 34/255, green: 197/255, blue: 94/255)
-    static let warning = Color(red: 245/255, green: 158/255, blue: 11/255)
-    static let bad = Color(red: 239/255, green: 68/255, blue: 68/255)
-
-    static func quotaColor(_ remaining: Double) -> Color {
-        remaining < 20 ? bad : remaining < 50 ? warning : good
-    }
-}
-
+/// Compact OmniRouteTray layout with a selectable semantic color palette.
 struct PopoverView: View {
     @ObservedObject var store: QuotaStore
+    @AppStorage("quotaTheme") private var selectedTheme: QuotaTheme = .graphite
+
+    private var palette: TrayPalette { selectedTheme.palette }
     @AppStorage("quotaShowUsed") private var showUsed = false
 
     private var groups: [QuotaProviderGroup] { store.visibleGroups }
@@ -44,7 +30,7 @@ struct PopoverView: View {
             header
             separator
             if store.showingSettings {
-                SettingsView(store: store)
+                SettingsView(store: store, selectedTheme: $selectedTheme)
             } else {
                 ScrollView(.vertical) {
                     VStack(alignment: .leading, spacing: 0) {
@@ -59,22 +45,24 @@ struct PopoverView: View {
             }
         }
         .frame(width: 310)
-        .background(TrayPalette.background)
-        .foregroundStyle(TrayPalette.text)
+        .background(palette.background)
+        .foregroundStyle(palette.text)
         .clipShape(RoundedRectangle(cornerRadius: 12))
-        .preferredColorScheme(.dark)
+        .tint(palette.accent)
+        .environment(\.trayPalette, palette)
+        .preferredColorScheme(selectedTheme.isLight ? .light : .dark)
     }
 
     private var separator: some View {
         Rectangle()
-            .fill(TrayPalette.border)
+            .fill(palette.border)
             .frame(height: 1)
     }
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline, spacing: 7) {
             Circle()
-                .fill(store.connected ? TrayPalette.good : (store.refreshing ? TrayPalette.warning : TrayPalette.bad))
+                .fill(store.connected ? palette.good : (store.refreshing ? palette.warning : palette.bad))
                 .frame(width: 9, height: 9)
                 .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] }
                 .accessibilityHidden(true)
@@ -85,7 +73,7 @@ struct PopoverView: View {
 
             Text(store.connected ? "Running" : (store.refreshing ? "Starting…" : "Offline"))
                 .font(.system(size: 11))
-                .foregroundStyle(TrayPalette.muted)
+                .foregroundStyle(palette.muted)
 
             Spacer(minLength: 3)
         }
@@ -106,7 +94,7 @@ struct PopoverView: View {
             Spacer(minLength: 0)
         }
         .font(.system(size: 11))
-        .foregroundStyle(TrayPalette.muted)
+        .foregroundStyle(palette.muted)
         .lineLimit(1)
         .padding(.horizontal, 13)
         .padding(.vertical, 7)
@@ -118,19 +106,19 @@ struct PopoverView: View {
                 Text("USAGE")
                     .font(.system(size: 10.5, weight: .semibold))
                     .tracking(0.7)
-                    .foregroundStyle(TrayPalette.faint)
+                    .foregroundStyle(palette.faint)
                 Spacer()
                 Button {
                     showUsed.toggle()
                 } label: {
                     Text(showUsed ? "% used" : "% left")
                         .font(.system(size: 10.5, weight: .medium))
-                        .foregroundStyle(TrayPalette.muted)
+                        .foregroundStyle(palette.muted)
                         .frame(minWidth: 49)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 4)
-                        .background(TrayPalette.raised, in: RoundedRectangle(cornerRadius: 6))
-                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(TrayPalette.border))
+                        .background(palette.raised, in: RoundedRectangle(cornerRadius: 6))
+                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(palette.border))
                 }
                 .buttonStyle(.plain)
                 .help("Toggle remaining and used quota")
@@ -141,13 +129,13 @@ struct PopoverView: View {
             if store.errorMessage != nil && store.lastUpdated != nil {
                 Label("Showing last known quotas", systemImage: "exclamationmark.triangle.fill")
                     .font(.system(size: 10.5))
-                    .foregroundStyle(TrayPalette.warning)
+                    .foregroundStyle(palette.warning)
                     .padding(.bottom, 7)
                     .help(store.errorMessage ?? "")
             } else if let warning = store.refreshWarning {
                 Label("Some account quotas could not refresh", systemImage: "exclamationmark.triangle.fill")
                     .font(.system(size: 10.5))
-                    .foregroundStyle(TrayPalette.warning)
+                    .foregroundStyle(palette.warning)
                     .padding(.bottom, 7)
                     .help(warning)
             }
@@ -177,12 +165,12 @@ struct PopoverView: View {
         VStack(spacing: 10) {
             Image(systemName: store.refreshing ? "arrow.triangle.2.circlepath" : "wifi.slash")
                 .font(.system(size: 20))
-                .foregroundStyle(TrayPalette.faint)
+                .foregroundStyle(palette.faint)
             Text(store.refreshing ? "Loading quotas…" : "Can't connect to OmniRoute")
                 .font(.system(size: 12, weight: .semibold))
             Text(store.errorMessage ?? "Make sure OmniRoute is running on this Mac.")
                 .font(.system(size: 11))
-                .foregroundStyle(TrayPalette.muted)
+                .foregroundStyle(palette.muted)
                 .multilineTextAlignment(.center)
             Button("Retry") { Task { await store.refresh() } }
                 .buttonStyle(.bordered)
@@ -200,7 +188,7 @@ struct PopoverView: View {
                  ? "Add a connection in OmniRoute to see its quota."
                  : "All accounts are hidden or have no measurable quota. Adjust display settings to show them.")
                 .font(.system(size: 10.5))
-                .foregroundStyle(TrayPalette.muted)
+                .foregroundStyle(palette.muted)
                 .multilineTextAlignment(.center)
             Button(store.accounts.isEmpty ? "Open OmniRoute" : "Display settings") {
                 if store.accounts.isEmpty { store.openDashboard() }
@@ -218,7 +206,7 @@ struct PopoverView: View {
             Text(footerRefreshLabel)
                 .font(.system(size: 10.5))
                 .foregroundStyle(store.errorMessage == nil && store.refreshWarning == nil
-                                 ? TrayPalette.faint : TrayPalette.warning)
+                                 ? palette.faint : palette.warning)
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
                 .help(store.errorMessage ?? store.refreshWarning ??
@@ -227,11 +215,11 @@ struct PopoverView: View {
             Button { store.openDashboard() } label: {
                 Text(":\(serverPort)")
                     .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(TrayPalette.muted)
+                    .foregroundStyle(palette.muted)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 2)
-                    .background(TrayPalette.raised, in: RoundedRectangle(cornerRadius: 5))
-                    .overlay(RoundedRectangle(cornerRadius: 5).stroke(TrayPalette.border))
+                    .background(palette.raised, in: RoundedRectangle(cornerRadius: 5))
+                    .overlay(RoundedRectangle(cornerRadius: 5).stroke(palette.border))
             }
             .buttonStyle(.plain)
             .help("Open OmniRoute")
@@ -239,7 +227,7 @@ struct PopoverView: View {
             if store.refreshing {
                 ProgressView()
                     .controlSize(.small)
-                    .tint(TrayPalette.muted)
+                    .tint(palette.muted)
                     .frame(width: 24, height: 24)
                     .help(store.forcingRefresh
                           ? "Refreshing live quotas for enabled and disabled accounts…"
@@ -279,10 +267,10 @@ struct PopoverView: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(TrayPalette.muted)
+                .foregroundStyle(palette.muted)
                 .frame(width: 24, height: 24)
-                .background(TrayPalette.raised, in: RoundedRectangle(cornerRadius: 6))
-                .overlay(RoundedRectangle(cornerRadius: 6).stroke(TrayPalette.border))
+                .background(palette.raised, in: RoundedRectangle(cornerRadius: 6))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(palette.border))
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -292,6 +280,7 @@ struct PopoverView: View {
 }
 
 private struct AccountQuotaRows: View {
+    @Environment(\.trayPalette) private var palette
     let account: QuotaAccount
     let server: String
     let showUsed: Bool
@@ -308,7 +297,7 @@ private struct AccountQuotaRows: View {
                 ProviderMark(provider: account.provider, server: server)
                 Text(displayName)
                     .font(.system(size: 11.5, weight: .semibold))
-                    .foregroundStyle(account.active ? TrayPalette.text : TrayPalette.muted)
+                    .foregroundStyle(account.active ? palette.text : palette.muted)
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .help(account.name)
@@ -317,19 +306,19 @@ private struct AccountQuotaRows: View {
                     Text("OFF")
                         .font(.system(size: 9, weight: .semibold))
                         .tracking(0.35)
-                        .foregroundStyle(TrayPalette.faint)
+                        .foregroundStyle(palette.faint)
                         .help("Disabled account, showing cached quota when available")
                 }
                 if account.isStale {
                     Text("STALE")
                         .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(TrayPalette.warning)
+                        .foregroundStyle(palette.warning)
                 }
             }
             if account.windows.isEmpty {
                 Text(account.active ? "Quota not available" : "No cached quota available")
                     .font(.system(size: 11))
-                    .foregroundStyle(TrayPalette.muted)
+                    .foregroundStyle(palette.muted)
                     .padding(.leading, 22)
                     .frame(height: 20, alignment: .leading)
             } else {
@@ -380,25 +369,26 @@ private struct ProviderMark: View {
 }
 
 private struct QuotaGridRow: View {
+    @Environment(\.trayPalette) private var palette
     let window: QuotaWindow
     let showUsed: Bool
     let inactive: Bool
 
     private var value: Double { window.displayedPercent(showUsed: showUsed) }
     private var color: Color {
-        inactive ? TrayPalette.muted : TrayPalette.quotaColor(window.remainingPercent)
+        inactive ? palette.muted : palette.quotaColor(window.remainingPercent)
     }
 
     var body: some View {
         HStack(spacing: 7) {
             Text(window.label)
                 .font(.system(size: 10.5, weight: .semibold))
-                .foregroundStyle(TrayPalette.muted)
+                .foregroundStyle(palette.muted)
                 .frame(width: 22, alignment: .leading)
 
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(TrayPalette.border)
+                    Capsule().fill(palette.border)
                     Capsule()
                         .fill(color)
                         .frame(width: geometry.size.width * value / 100)
@@ -414,7 +404,7 @@ private struct QuotaGridRow: View {
 
             Text(window.resetAt == nil ? "" : window.countdown())
                 .font(.system(size: 10))
-                .foregroundStyle(TrayPalette.faint)
+                .foregroundStyle(palette.faint)
                 .monospacedDigit()
                 .frame(width: 44, alignment: .trailing)
                 .help(window.resetAt.map { "Resets \($0.formatted(date: .abbreviated, time: .shortened))" } ?? "Reset time unavailable")
@@ -426,6 +416,7 @@ private struct QuotaGridRow: View {
 }
 
 private struct ArrangementSettings: View {
+    @Environment(\.trayPalette) private var palette
     @ObservedObject var store: QuotaStore
 
     private var groups: [QuotaProviderGroup] { store.settingsGroups }
@@ -435,12 +426,12 @@ private struct ArrangementSettings: View {
             HStack(spacing: 6) {
                 Text("Uncheck to hide · arrows to reorder")
                     .font(.system(size: 10))
-                    .foregroundStyle(TrayPalette.muted)
+                    .foregroundStyle(palette.muted)
                 Spacer(minLength: 0)
                 Button("Reset order") { store.resetDisplayOrder() }
                     .buttonStyle(.plain)
                     .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(TrayPalette.muted)
+                    .foregroundStyle(palette.muted)
                     .help("Reset provider and account order; keep visibility choices")
             }
             .padding(.bottom, 3)
@@ -448,7 +439,7 @@ private struct ArrangementSettings: View {
             if groups.isEmpty {
                 Text("Connected accounts will appear here after a refresh.")
                     .font(.system(size: 10.5))
-                    .foregroundStyle(TrayPalette.muted)
+                    .foregroundStyle(palette.muted)
             }
 
             ForEach(groups) { group in
@@ -497,7 +488,7 @@ private struct ArrangementSettings: View {
                             if !QuotaDisplayPreferences.hasMeasurableQuota(account) {
                                 Image(systemName: "minus.circle")
                                     .font(.system(size: 10))
-                                    .foregroundStyle(TrayPalette.faint)
+                                    .foregroundStyle(palette.faint)
                                     .help("No finite quota reported; hidden when the no-quota filter is enabled")
                             }
                             Spacer(minLength: 1)
@@ -516,7 +507,7 @@ private struct ArrangementSettings: View {
                 .padding(.vertical, 4)
 
                 if providerIndex < groups.count - 1 {
-                    Rectangle().fill(TrayPalette.border).frame(height: 1)
+                    Rectangle().fill(palette.border).frame(height: 1)
                 }
             }
         }
@@ -527,7 +518,7 @@ private struct ArrangementSettings: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(disabled ? TrayPalette.faint.opacity(0.4) : TrayPalette.muted)
+                .foregroundStyle(disabled ? palette.faint.opacity(0.4) : palette.muted)
                 .frame(width: 18, height: 18)
                 .contentShape(Rectangle())
         }
@@ -541,6 +532,7 @@ private struct ArrangementSettings: View {
 /// The alert selection is intentionally separate from popover visibility and
 /// always lists every configured connection (including disabled or hidden).
 private struct MenuBarMonitorSettings: View {
+    @Environment(\.trayPalette) private var palette
     @ObservedObject var store: QuotaStore
 
     private var groups: [QuotaProviderGroup] { store.settingsGroups }
@@ -550,7 +542,7 @@ private struct MenuBarMonitorSettings: View {
         VStack(alignment: .leading, spacing: 7) {
             Text("Providers include every account, even disabled or future connections. For a smaller selection, check individual accounts instead.")
                 .font(.system(size: 10))
-                .foregroundStyle(TrayPalette.muted)
+                .foregroundStyle(palette.muted)
                 .fixedSize(horizontal: false, vertical: true)
 
             ForEach(groups) { group in
@@ -589,7 +581,7 @@ private struct MenuBarMonitorSettings: View {
                             if !account.active {
                                 Text("OFF")
                                     .font(.system(size: 9, weight: .medium))
-                                    .foregroundStyle(TrayPalette.faint)
+                                    .foregroundStyle(palette.faint)
                                     .help("Disabled accounts can be monitored using their cached quotas")
                             }
                         }
@@ -598,36 +590,103 @@ private struct MenuBarMonitorSettings: View {
                 }
                 .padding(.vertical, 3)
                 if group.id != groups.last?.id {
-                    Rectangle().fill(TrayPalette.border).frame(height: 1)
+                    Rectangle().fill(palette.border).frame(height: 1)
                 }
             }
 
             if groups.isEmpty {
                 Text("Configured accounts will appear after connecting to OmniRoute.")
                     .font(.system(size: 10.5))
-                    .foregroundStyle(TrayPalette.muted)
+                    .foregroundStyle(palette.muted)
             } else if preferences.monitoredAccounts(from: store.accounts).isEmpty {
                 Text("Select at least one account or provider to enable quota warnings.")
                     .font(.system(size: 10.5))
-                    .foregroundStyle(TrayPalette.warning)
+                    .foregroundStyle(palette.warning)
             } else {
                 Text("\(preferences.monitoredAccounts(from: store.accounts).count) accounts monitored")
                     .font(.system(size: 10))
-                    .foregroundStyle(TrayPalette.faint)
+                    .foregroundStyle(palette.faint)
+            }
+        }
+    }
+}
+
+/// Five tap targets with accurate palette miniatures; each selection updates
+/// the entire popover immediately and persists through @AppStorage.
+private struct ThemeSelector: View {
+    @Binding var selection: QuotaTheme
+    @Environment(\.trayPalette) private var palette
+
+    var body: some View {
+        HStack(spacing: 5) {
+            ForEach(QuotaTheme.allCases) { option in
+                let preview = option.palette
+                Button {
+                    selection = option
+                } label: {
+                    VStack(spacing: 5) {
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 5)
+                                .fill(preview.background)
+                            VStack(alignment: .leading, spacing: 6) {
+                                Capsule()
+                                    .fill(preview.text)
+                                    .frame(width: 19, height: 3)
+                                HStack(spacing: 3) {
+                                    Capsule()
+                                        .fill(preview.good)
+                                        .frame(width: 19, height: 4)
+                                    Capsule()
+                                        .fill(preview.warning)
+                                        .frame(width: 9, height: 4)
+                                }
+                            }
+                            .padding(.leading, 6)
+                        }
+                        .frame(height: 34)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 5)
+                                .stroke(preview.border, lineWidth: 1)
+                        )
+
+                        Text(option.displayName)
+                            .font(.system(size: 9, weight: selection == option ? .semibold : .medium))
+                            .foregroundStyle(palette.text)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
+                    .padding(4)
+                    .frame(maxWidth: .infinity)
+                    .background(selection == option ? palette.accent.opacity(0.16) : palette.raised,
+                                in: RoundedRectangle(cornerRadius: 7))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 7)
+                            .stroke(selection == option ? palette.accent : palette.border,
+                                    lineWidth: selection == option ? 1.5 : 1)
+                    )
+                }
+                .buttonStyle(.plain)
+                .help("Use \(option.displayName) theme")
+                .accessibilityLabel("\(option.displayName) theme")
+                .accessibilityValue(selection == option ? "Selected" : "Not selected")
             }
         }
     }
 }
 
 private struct SettingsView: View {
+    @Environment(\.trayPalette) private var palette
     @ObservedObject var store: QuotaStore
     @State private var address: String
     @State private var apiKey: String
     @State private var cliToken: String
     @State private var saveError: String?
 
-    init(store: QuotaStore) {
+    @Binding private var selectedTheme: QuotaTheme
+
+    init(store: QuotaStore, selectedTheme: Binding<QuotaTheme>) {
         self.store = store
+        _selectedTheme = selectedTheme
         _address = State(initialValue: store.address)
         _apiKey = State(initialValue: store.apiKey)
         _cliToken = State(initialValue: store.tokenOverride)
@@ -644,12 +703,15 @@ private struct SettingsView: View {
                             .font(.system(size: 11, weight: .semibold))
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(TrayPalette.bad)
+                    .foregroundStyle(palette.bad)
                     Text("Settings")
                         .font(.system(size: 13, weight: .bold))
                 }
                 .padding(.bottom, 4)
-                Rectangle().fill(TrayPalette.border).frame(height: 1)
+                Rectangle().fill(palette.border).frame(height: 1)
+
+                sectionTitle("THEME")
+                ThemeSelector(selection: $selectedTheme)
 
                 sectionTitle("CONNECTION")
                 TextField("127.0.0.1:20128", text: $address)
@@ -657,7 +719,7 @@ private struct SettingsView: View {
                     .font(.system(size: 12))
                 Text("Only localhost is permitted. Your quota data stays on this Mac.")
                     .font(.system(size: 10.5))
-                    .foregroundStyle(TrayPalette.muted)
+                    .foregroundStyle(palette.muted)
 
                 sectionTitle("MENU BAR ICON")
                 Picker("Menu-bar icon mode", selection: $store.menuPreferences.mode) {
@@ -670,7 +732,7 @@ private struct SettingsView: View {
                 if store.menuPreferences.mode == .staticIcon {
                     Text("Always show the OmniRoute icon, without quota percentages or warnings.")
                         .font(.system(size: 10.5))
-                        .foregroundStyle(TrayPalette.muted)
+                        .foregroundStyle(palette.muted)
                 } else {
                     Picker("Monitor", selection: $store.menuPreferences.scope) {
                         Text("All active").tag(QuotaMonitorScope.allActive)
@@ -684,7 +746,7 @@ private struct SettingsView: View {
                     } else {
                         Text("Alerts reflect the lowest quota across active accounts. Use Custom to choose specific providers, accounts, or disabled connections.")
                             .font(.system(size: 10.5))
-                            .foregroundStyle(TrayPalette.muted)
+                            .foregroundStyle(palette.muted)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -700,7 +762,7 @@ private struct SettingsView: View {
                     .font(.system(size: 11.5))
                 Text("Accounts with no reported finite quota are hidden by default. Empty providers disappear too. Disabled accounts remain optional.")
                     .font(.system(size: 10.5))
-                    .foregroundStyle(TrayPalette.muted)
+                    .foregroundStyle(palette.muted)
                     .fixedSize(horizontal: false, vertical: true)
 
                 sectionTitle("ORDER & VISIBILITY")
@@ -713,7 +775,7 @@ private struct SettingsView: View {
                     .textFieldStyle(.roundedBorder)
                 Text("Leave empty to read OMNIROUTE_API_KEY locally. Manual overrides are stored in Keychain.")
                     .font(.system(size: 10.5))
-                    .foregroundStyle(TrayPalette.muted)
+                    .foregroundStyle(palette.muted)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text("CLI token override")
@@ -722,19 +784,19 @@ private struct SettingsView: View {
                     .textFieldStyle(.roundedBorder)
                 Text("Only needed when your OmniRoute installation uses a custom CLI token.")
                     .font(.system(size: 10.5))
-                    .foregroundStyle(TrayPalette.muted)
+                    .foregroundStyle(palette.muted)
 
                 if let saveError {
                     Text(saveError)
                         .font(.system(size: 11))
-                        .foregroundStyle(TrayPalette.bad)
+                        .foregroundStyle(palette.bad)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
                 HStack {
                     Button("Quit app") { NSApplication.shared.terminate(nil) }
                         .buttonStyle(.plain)
-                        .foregroundStyle(TrayPalette.muted)
+                        .foregroundStyle(palette.muted)
                         .font(.system(size: 11))
                     Spacer()
                     Button("Save & connect") {
@@ -756,7 +818,7 @@ private struct SettingsView: View {
         Text(value)
             .font(.system(size: 10.5, weight: .semibold))
             .tracking(0.7)
-            .foregroundStyle(TrayPalette.faint)
+            .foregroundStyle(palette.faint)
             .padding(.top, 3)
     }
 }
