@@ -6,7 +6,7 @@ import SwiftUI
 /// Compact OmniRouteTray layout with a selectable semantic color palette.
 struct PopoverView: View {
     @ObservedObject var store: QuotaStore
-    @AppStorage("quotaTheme") private var selectedTheme: QuotaTheme = .graphite
+    @AppStorage("quotaTheme") private var selectedTheme: QuotaTheme = .oled
 
     private var palette: TrayPalette { selectedTheme.palette }
     @AppStorage("quotaShowUsed") private var showUsed = false

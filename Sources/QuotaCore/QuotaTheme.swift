@@ -1,9 +1,9 @@
 import Foundation
 
-/// Persistent names for the five popover themes. Existing installations keep
-/// Graphite (the original OmniRouteTray dark appearance) by default.
+/// Five UI themes. OLED replaces the old Graphite palette. Its stored raw
+/// value stays "graphite" to preserve existing @AppStorage preferences.
 public enum QuotaTheme: String, Codable, CaseIterable, Identifiable, Sendable {
-    case graphite
+    case oled = "graphite" // Existing installs migrate in place, without resetting settings.
     case midnight
     case forest
     case dusk
@@ -13,7 +13,7 @@ public enum QuotaTheme: String, Codable, CaseIterable, Identifiable, Sendable {
 
     public var displayName: String {
         switch self {
-        case .graphite: return "Graphite"
+        case .oled: return "OLED"
         case .midnight: return "Midnight"
         case .forest: return "Forest"
         case .dusk: return "Dusk"
@@ -27,11 +27,13 @@ public enum QuotaTheme: String, Codable, CaseIterable, Identifiable, Sendable {
     /// native controls. The menu-bar glyph always follows macOS itself.
     public var tokens: QuotaThemeTokens {
         switch self {
-        case .graphite:
-            return .init(background: 0x1C1C1E, raised: 0x2C2C2E, border: 0x38383A,
-                         text: 0xF5F5F7, muted: 0xA1A1AA, faint: 0x9398A3,
-                         good: 0x22C55E, warning: 0xF59E0B, bad: 0xFF6B6B,
-                         accent: 0x88B8FF)
+        case .oled:
+            // Real black keeps background OLED pixels switched off. Use only
+            // subtle elevation; stronger outlines/status hues remain legible.
+            return .init(background: 0x000000, raised: 0x101014, border: 0x626270,
+                         text: 0xF6F7FA, muted: 0xB5B8C2, faint: 0x989CA7,
+                         good: 0x45D49C, warning: 0xFABB5D, bad: 0xFF6F7C,
+                         accent: 0xA9CAFF)
         case .midnight:
             return .init(background: 0x0E1726, raised: 0x17273B, border: 0x28384D,
                          text: 0xEAF3FF, muted: 0xB4C5D9, faint: 0x9AAEC7,

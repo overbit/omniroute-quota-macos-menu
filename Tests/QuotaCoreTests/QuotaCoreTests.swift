@@ -97,12 +97,20 @@ final class QuotaCoreTests: XCTestCase {
 
     func testFiveThemeNamesAndPersistence() throws {
         let themes = QuotaTheme.allCases
-        XCTAssertEqual(themes, [.graphite, .midnight, .forest, .dusk, .paper])
+        XCTAssertEqual(themes, [.oled, .midnight, .forest, .dusk, .paper])
         XCTAssertEqual(Set(themes.map(\.displayName)).count, 5)
         XCTAssertEqual(Set(themes.map(\.tokens.background)).count, 5)
         XCTAssertTrue(QuotaTheme.paper.isLight)
         XCTAssertTrue(themes.filter(\.isLight).count == 1)
-        XCTAssertEqual(QuotaTheme(rawValue: "graphite"), .graphite)
+        // Legacy Graphite selections automatically resolve to OLED.
+        XCTAssertEqual(QuotaTheme(rawValue: "graphite"), .oled)
+        XCTAssertEqual(QuotaTheme.oled.rawValue, "graphite")
+        XCTAssertEqual(QuotaTheme.oled.displayName, "OLED")
+        XCTAssertFalse(themes.map(\.displayName).contains("Graphite"))
+        XCTAssertEqual(QuotaTheme.oled.tokens.background, 0x000000)
+        XCTAssertNotEqual(QuotaTheme.oled.tokens.background, QuotaTheme.oled.tokens.raised)
+        let priorChoice = try JSONDecoder().decode(QuotaTheme.self, from: Data(#""graphite""#.utf8))
+        XCTAssertEqual(priorChoice, .oled)
         XCTAssertNil(QuotaTheme(rawValue: "unknown"))
 
         for theme in themes {

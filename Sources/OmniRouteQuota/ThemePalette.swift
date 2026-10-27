@@ -49,7 +49,7 @@ private extension Color {
 }
 
 private struct TrayPaletteKey: EnvironmentKey {
-    static let defaultValue = QuotaTheme.graphite.palette
+    static let defaultValue = QuotaTheme.oled.palette
 }
 
 extension EnvironmentValues {
