@@ -28,6 +28,9 @@ public struct TimelineRequest: Identifiable, Equatable, Sendable {
         active || completed ? timestamp : timestamp.addingTimeInterval(-(duration ?? 0))
     }
 
+    /// All row types display the derived local start, never an unlabeled event time.
+    public var startTimeLabel: String { "Start \(start.formatted(date: .omitted, time: .standard))" }
+
     public func end(at now: Date) -> Date {
         if active { return max(timestamp, now) }
         return completed ? timestamp.addingTimeInterval(duration ?? 0) : timestamp
@@ -115,7 +118,9 @@ public struct TimelineSnapshot: Equatable, Sendable {
     }
 
     public mutating func prune(at now: Date) {
-        let liveThrough = failure == nil ? now : (lastUpdated ?? now)
+        // Retain active rows only while their last server acknowledgement is recent,
+        // even if a subsequent request stalls without returning an error.
+        let liveThrough = lastUpdated ?? now
         rows = Array(rows.filter {
             $0.start <= now && $0.end(at: liveThrough) >= now.addingTimeInterval(-300)
         }.sorted {
@@ -135,23 +140,40 @@ public final class TimelinePoller {
     public private(set) var snapshot = TimelineSnapshot()
     public var onChange: ((TimelineSnapshot) -> Void)?
     private var task: Task<Void, Never>?
+    private var retentionTask: Task<Void, Never>?
     private var generation = 0
     private let clock: @Sendable () -> Date
     private let sleep: Sleep
+    private let retentionSleep: Sleep
 
     public init(clock: @escaping @Sendable () -> Date = { Date() },
-                sleep: @escaping Sleep = { try await Task.sleep(for: .seconds(2)) }) {
+                sleep: @escaping Sleep = { try await Task.sleep(for: .seconds(2)) },
+                retentionSleep: @escaping Sleep = { try await Task.sleep(for: .seconds(1)) }) {
         self.clock = clock
         self.sleep = sleep
+        self.retentionSleep = retentionSleep
     }
 
     public func start(load: @escaping Load) {
         guard task == nil else { return }
         generation += 1
         let current = generation
+        // Independent local maintenance: a hung transport must not retain old data.
+        // This clock exists only while Timeline is visible, never in hidden mode.
+        retentionTask = Task { [weak self, retentionSleep] in
+            while !Task.isCancelled {
+                do { try await retentionSleep() } catch { return }
+                guard let self, self.generation == current, !Task.isCancelled else { return }
+                let previous = self.snapshot
+                self.snapshot.prune(at: self.clock())
+                if self.snapshot != previous { self.onChange?(self.snapshot) }
+            }
+        }
         task = Task { [weak self, sleep] in
             defer {
-                if let self, self.generation == current { self.task = nil }
+                if let self, self.generation == current {
+                    self.stop()
+                }
             }
             while !Task.isCancelled {
                 do {
@@ -171,15 +193,17 @@ public final class TimelinePoller {
         }
     }
 
-    public func stop(clear: Bool = false) {
+    public func stop() {
         generation += 1
         task?.cancel()
         task = nil
-        if clear {
+        retentionTask?.cancel()
+        retentionTask = nil
+        if snapshot != TimelineSnapshot() {
             snapshot = TimelineSnapshot()
             onChange?(snapshot)
         }
     }
 
-    deinit { task?.cancel() }
+    deinit { task?.cancel(); retentionTask?.cancel() }
 }

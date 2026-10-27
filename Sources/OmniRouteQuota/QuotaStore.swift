@@ -146,7 +146,7 @@ final class QuotaStore: ObservableObject {
         let cleanToken = tokenOverride.trimmingCharacters(in: .whitespacesAndNewlines)
         try LocalCredentials.save(cleanKey, account: "apiKey")
         try LocalCredentials.save(cleanToken, account: "cliToken")
-        timelinePoller.stop(clear: true)
+        timelinePoller.stop()
         timeline = TimelineSnapshot()
         self.address = address.trimmingCharacters(in: .whitespacesAndNewlines)
         self.apiKey = cleanKey

@@ -72,7 +72,7 @@ struct RequestTimelineView: View {
             .lineLimit(1)
             .truncationMode(.middle)
             HStack(spacing: 4) {
-                Text(row.start, style: .time)
+                Text(row.startTimeLabel)
                 Spacer(minLength: 2)
                 Text(row.statusText).foregroundStyle(color)
                 Text(row.durationText(at: liveThrough)).foregroundStyle(palette.muted)
@@ -83,9 +83,11 @@ struct RequestTimelineView: View {
                 let width = geometry.size.width
                 ZStack(alignment: .leading) {
                     Capsule().fill(palette.border).frame(height: 1)
-                    Capsule().fill(color)
-                        .frame(width: min(width, max(2, width * mark.width)), height: 4)
-                        .offset(x: min(max(0, width - 2), width * mark.offset))
+                    if mark.width > 0 {
+                        Capsule().fill(color)
+                            .frame(width: width * mark.width, height: 4)
+                            .offset(x: width * mark.offset)
+                    }
                 }
                 .frame(height: 4)
             }
@@ -94,7 +96,7 @@ struct RequestTimelineView: View {
         }
         .padding(.vertical, 3)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(row.provider), \(row.model), \(row.start.formatted(date: .omitted, time: .standard)), \(row.statusText), \(row.durationText(at: liveThrough))")
+        .accessibilityLabel("\(row.provider), \(row.model), \(row.startTimeLabel), \(row.statusText), \(row.durationText(at: liveThrough))")
     }
 }
 #endif

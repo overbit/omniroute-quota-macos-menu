@@ -75,6 +75,29 @@ final class TimelineTests: XCTestCase {
         XCTAssertEqual(try row(extra: #", "duration":25"#).durationText(at: now), "25 ms")
     }
 
+    func testCompletedAndHistoricalRowsExplicitlyLabelDerivedLocalStart() throws {
+        let completed = try row(extra: #", "completed":true,"duration":2000"#)
+        let historical = try row(extra: #", "duration":2000"#)
+        XCTAssertEqual(completed.startTimeLabel,
+                       "Start \(now.addingTimeInterval(-10).formatted(date: .omitted, time: .standard))")
+        XCTAssertEqual(historical.startTimeLabel,
+                       "Start \(now.addingTimeInterval(-12).formatted(date: .omitted, time: .standard))")
+        XCTAssertNotEqual(completed.startTimeLabel, historical.startTimeLabel)
+    }
+
+    func testZeroLengthAndFullyClippedIntervalsHaveNoFill() throws {
+        // The native renderer draws a fill only when this width is positive,
+        // and multiplies it directly by track width, with no minimum-width bar.
+        for extra in ["", #", "duration":null"#, #", "duration":-1"#, #", "duration":0"#] {
+            XCTAssertEqual(try row(extra: extra).mark(at: now).width, 0)
+        }
+        XCTAssertEqual(try row(timestamp: "2026-10-27T12:10:00Z", extra: #", "active":true"#).mark(at: now).width, 0)
+        XCTAssertEqual(try row(timestamp: "2026-10-27T11:00:00Z", extra: #", "duration":1000"#).mark(at: now).width, 0)
+        let mark = try row(extra: #", "completed":true,"duration":1000"#).mark(at: now)
+        XCTAssertEqual(mark.width, 1 / 300, accuracy: 0.000001)
+        XCTAssertLessThanOrEqual(mark.offset + mark.width, 1)
+    }
+
     func testDeduplicationCompletionUpdateTieOrderAndAuthoritativeRemoval() throws {
         var snapshot = TimelineSnapshot()
         let active = try row(extra: #", "active":true"#)
@@ -341,7 +364,9 @@ final class TimelineLifecycleTests: XCTestCase {
         while await harness.loadCount < 2 { await Task.yield() }
         await harness.fail()
         await fulfillment(of: [started, second, sleeping], timeout: 2)
+        poller.onChange = nil
         poller.stop()
+        XCTAssertEqual(poller.snapshot, TimelineSnapshot())
         await harness.cancelDelay()
     }
 
@@ -368,18 +393,86 @@ final class TimelineLifecycleTests: XCTestCase {
         await fulfillment(of: [accepted, sleeping], timeout: 2)
         XCTAssertEqual(nonemptyPublications, 1)
         XCTAssertEqual(poller.snapshot.rows, rows)
-        poller.stop(clear: true) // The app calls this before replacing endpoint/credentials.
+        poller.stop() // The app calls this before replacing endpoint/credentials.
         XCTAssertTrue(poller.snapshot.rows.isEmpty)
         XCTAssertNil(poller.snapshot.lastUpdated)
         await harness.cancelDelay()
         poller.start { try await harness.load() }
         while await harness.loadCount < 3 { await Task.yield() }
-        poller.stop(clear: true)
+        poller.stop()
         await harness.resolve(rows) // Late old-configuration response must not repopulate.
         await fulfillment(of: [started], timeout: 2)
         for _ in 0..<20 { await Task.yield() }
         XCTAssertTrue(poller.snapshot.rows.isEmpty)
         XCTAssertEqual(nonemptyPublications, 1)
+    }
+
+    func testRetentionClockEvictsRowsWhileNextTransportIsStalled() async throws {
+        let started = expectation(description: "second request stalls")
+        started.expectedFulfillmentCount = 2
+        let sleeping = expectation(description: "first poll delay")
+        let harness = TimelineHarness(started: started, sleeping: sleeping)
+        let ticks = TimelineTicks()
+        let clock = TimelineClock(Date())
+        let rows = [
+            TimelineRequest(id: "completed", timestamp: clock.now(), provider: "p", model: "m", status: 200, duration: 0, active: false, completed: true),
+            TimelineRequest(id: "active", timestamp: clock.now(), provider: "p", model: "m", status: 0, duration: nil, active: true, completed: false)
+        ]
+        let poller = TimelinePoller(clock: { clock.now() }, sleep: { try await harness.sleep() },
+                                    retentionSleep: { try await ticks.sleep() })
+        let accepted = expectation(description: "rows received")
+        let expired = expectation(description: "rows evicted without transport settling")
+        poller.onChange = { snapshot in
+            if snapshot.rows.isEmpty { expired.fulfill() } else { accepted.fulfill() }
+        }
+        poller.start { try await harness.load() }
+        while await harness.loadCount == 0 { await Task.yield() }
+        await harness.resolve(rows)
+        await fulfillment(of: [accepted, sleeping], timeout: 2)
+        while await harness.delays.isEmpty { await Task.yield() }
+        await harness.wake()
+        await fulfillment(of: [started], timeout: 2)
+        while await ticks.pending == 0 { await Task.yield() }
+        clock.advance(301)
+        await ticks.wake()
+        await fulfillment(of: [expired], timeout: 2)
+        XCTAssertTrue(poller.snapshot.rows.isEmpty)
+        XCTAssertNil(poller.snapshot.failure)
+        let count = await harness.loadCount
+        XCTAssertEqual(count, 2)
+        poller.onChange = nil
+        poller.stop()
+        await harness.resolve(rows)
+        await ticks.cancelAll()
+    }
+
+    func testStopClearsRowsAndCancelsIndependentRetentionClock() async throws {
+        let started = expectation(description: "single load")
+        let sleeping = expectation(description: "poll delay")
+        let harness = TimelineHarness(started: started, sleeping: sleeping)
+        let ticks = TimelineTicks()
+        let clock = TimelineClock(Date())
+        let row = TimelineRequest(id: "a", timestamp: clock.now(), provider: "p", model: "m", status: 200, duration: 0, active: false, completed: true)
+        let poller = TimelinePoller(clock: { clock.now() }, sleep: { try await harness.sleep() },
+                                    retentionSleep: { try await ticks.sleep() })
+        poller.start { try await harness.load() }
+        await fulfillment(of: [started], timeout: 2)
+        await harness.resolve([row])
+        await fulfillment(of: [sleeping], timeout: 2)
+        while await ticks.pending == 0 { await Task.yield() }
+        XCTAssertEqual(poller.snapshot.rows, [row])
+        poller.stop()
+        XCTAssertEqual(poller.snapshot, TimelineSnapshot())
+        poller.onChange = { _ in XCTFail("Stopped clock must not publish") }
+        clock.advance(301)
+        await ticks.wake() // Non-cooperative late tick after cancellation.
+        await harness.cancelDelay()
+        for _ in 0..<20 { await Task.yield() }
+        XCTAssertEqual(poller.snapshot, TimelineSnapshot())
+        let pending = await ticks.pending
+        let loads = await harness.loadCount
+        XCTAssertEqual(pending, 0)
+        XCTAssertEqual(loads, 1)
     }
 
     func testCancellationIsNotAVisibleFailure() async {
@@ -420,5 +513,28 @@ private final class TimelineRedirectServer: @unchecked Sendable {
                 connection.send(content: Data(response.utf8), completion: .contentProcessed { _ in connection.cancel() })
             }
         }
+    }
+}
+
+/// Independent controllable wall clock and local retention wakeups.
+private final class TimelineClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var date: Date
+    init(_ date: Date) { self.date = date }
+    func now() -> Date { lock.lock(); defer { lock.unlock() }; return date }
+    func advance(_ seconds: TimeInterval) { lock.lock(); defer { lock.unlock() }; date.addTimeInterval(seconds) }
+}
+
+private actor TimelineTicks {
+    private var waits: [CheckedContinuation<Void, Error>] = []
+    var pending: Int { waits.count }
+    func sleep() async throws {
+        try Task.checkCancellation()
+        try await withCheckedThrowingContinuation { waits.append($0) }
+    }
+    func wake() { waits.removeFirst().resume() }
+    func cancelAll() {
+        for wait in waits { wait.resume(throwing: CancellationError()) }
+        waits.removeAll()
     }
 }

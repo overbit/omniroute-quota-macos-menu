@@ -3,6 +3,15 @@ import AppKit
 import QuotaCore
 import SwiftUI
 
+/// Shared fixed chrome budget; both modes scroll inside a 425-point outer bound.
+private enum PopoverLayout {
+    static let maximumHeight: CGFloat = 425
+    static let headerHeight: CGFloat = 38
+    static let footerHeight: CGFloat = 34
+    static let pickerHeight: CGFloat = 36
+    static let contentHeight = maximumHeight - headerHeight - footerHeight - pickerHeight - 2
+}
+
 /// Compact OmniRouteTray layout with a selectable semantic color palette.
 struct PopoverView: View {
     @ObservedObject var store: QuotaStore
@@ -22,13 +31,13 @@ struct PopoverView: View {
             } + CGFloat(max(0, group.accounts.count - 1)) * 6 + 8
         }
         let warningHeight: CGFloat = (store.errorMessage == nil && store.refreshWarning == nil) ? 0 : 21
-        // Reserve 36 points for the mode picker inside the 425-point cap.
-        return min(425 - 36, max(130, 55 + rowHeight + warningHeight))
+        // Both modes share the remaining height after fixed chrome and separators.
+        return min(PopoverLayout.contentHeight, max(130, 55 + rowHeight + warningHeight))
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            header
+            header.frame(height: PopoverLayout.headerHeight)
             separator
             if store.showingSettings {
                 SettingsView(store: store, selectedTheme: $selectedTheme)
@@ -41,9 +50,10 @@ struct PopoverView: View {
                 .frame(height: 22)
                 .padding(.horizontal, 13)
                 .padding(.vertical, 7)
+                .frame(height: PopoverLayout.pickerHeight)
                 if store.showingTimeline {
                     RequestTimelineView(snapshot: store.timeline)
-                        .frame(height: 340)
+                        .frame(height: PopoverLayout.contentHeight)
                 } else {
                     ScrollView(.vertical) {
                         VStack(alignment: .leading, spacing: 0) {
@@ -55,7 +65,7 @@ struct PopoverView: View {
                     .frame(height: contentHeight)
                 }
                 separator
-                footer
+                footer.frame(height: PopoverLayout.footerHeight)
             }
         }
         .background(PopoverVisibilityReader { store.popoverVisible = $0 })
@@ -714,7 +724,7 @@ private struct SettingsView: View {
                     Button {
                         store.showingSettings = false
                     } label: {
-                        Label("Back", systemImage: "chevron.left")
+                        Label(store.showingTimeline ? "Back to Timeline" : "Back to Usage", systemImage: "chevron.left")
                             .font(.system(size: 11, weight: .semibold))
                     }
                     .buttonStyle(.plain)

@@ -60,7 +60,10 @@ five minutes (up to 100 rows, newest starts first). The app reads OmniRoute's
 `GET /api/usage/call-logs?limit=200` immediately, then waits two seconds after
 each response before polling again. This is live polling, not token streaming.
 Returning to Usage, entering Settings, or closing the popover stops it; saving
-connection settings clears the previous timeline. Quota polling remains independent.
+connection settings also clears the previous timeline. Hidden views discard recent
+rows immediately; a local clock evicts expired metadata even during a stalled poll.
+Settings labels its return button **Back to Timeline** or **Back to Usage**,
+matching the mode you came from; the mode picker is available after returning. Quota polling remains independent.
 
 Each row shows provider/model, local start time, status, elapsed/reported duration,
 and an interval on a shared five-minute axis. Active requests grow until completed;
