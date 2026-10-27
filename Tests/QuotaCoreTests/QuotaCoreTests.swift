@@ -95,6 +95,52 @@ final class QuotaCoreTests: XCTestCase {
         XCTAssertNil(OmniRouteEnvironment.apiKey(from: "OMNIROUTE_API_KEY='unterminated"))
     }
 
+    func testFiveThemeNamesAndPersistence() throws {
+        let themes = QuotaTheme.allCases
+        XCTAssertEqual(themes, [.graphite, .midnight, .forest, .dusk, .paper])
+        XCTAssertEqual(Set(themes.map(\.displayName)).count, 5)
+        XCTAssertEqual(Set(themes.map(\.tokens.background)).count, 5)
+        XCTAssertTrue(QuotaTheme.paper.isLight)
+        XCTAssertTrue(themes.filter(\.isLight).count == 1)
+        XCTAssertEqual(QuotaTheme(rawValue: "graphite"), .graphite)
+        XCTAssertNil(QuotaTheme(rawValue: "unknown"))
+
+        for theme in themes {
+            let restored = try JSONDecoder().decode(QuotaTheme.self, from: JSONEncoder().encode(theme))
+            XCTAssertEqual(restored, theme)
+        }
+    }
+
+    func testThemeColorsRemainReadableAcrossBackgroundsAndControls() {
+        func luminance(_ rgb: UInt32) -> Double {
+            func linear(_ byte: UInt32) -> Double {
+                let value = Double(byte) / 255
+                return value <= 0.04045 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
+            }
+            return 0.2126 * linear((rgb >> 16) & 0xFF)
+                + 0.7152 * linear((rgb >> 8) & 0xFF)
+                + 0.0722 * linear(rgb & 0xFF)
+        }
+        func contrast(_ first: UInt32, _ second: UInt32) -> Double {
+            let bright = max(luminance(first), luminance(second))
+            let dark = min(luminance(first), luminance(second))
+            return (bright + 0.05) / (dark + 0.05)
+        }
+
+        for theme in QuotaTheme.allCases {
+            let colors = theme.tokens
+            for background in [colors.background, colors.raised] {
+                for foreground in [colors.text, colors.muted, colors.faint,
+                                   colors.good, colors.warning, colors.bad, colors.accent] {
+                    XCTAssertGreaterThanOrEqual(contrast(foreground, background), 4.5,
+                                                "\(theme.displayName): \(String(foreground, radix: 16)) lacks readable contrast")
+                }
+            }
+            XCTAssertGreaterThanOrEqual(contrast(colors.text, colors.background), 7.0,
+                                        "\(theme.displayName): primary text should have strong contrast")
+        }
+    }
+
     func testMenuBarPreferencesKeepExistingAllActiveBehavior() {
         let accounts = [
             QuotaAccount(id: "work", name: "Work", provider: "openai-codex", active: true,
