@@ -1,4 +1,5 @@
 #if os(macOS)
+import AppKit
 import QuotaCore
 import SwiftUI
 
@@ -15,6 +16,58 @@ struct OmniRouteQuotaApp: App {
                 .onAppear { store.start() }
         }
         .menuBarExtraStyle(.window)
+    }
+}
+
+/// MenuBarExtra can keep its SwiftUI content mounted while its window is
+/// hidden. Observe the actual host window instead of relying on onDisappear.
+struct PopoverVisibilityReader: NSViewRepresentable {
+    let changed: (Bool) -> Void
+
+    func makeNSView(context: Context) -> VisibilityView {
+        let view = VisibilityView()
+        view.changed = changed
+        return view
+    }
+
+    func updateNSView(_ view: VisibilityView, context: Context) { view.changed = changed }
+
+    final class VisibilityView: NSView {
+        var changed: ((Bool) -> Void)?
+        private var observers: [NSObjectProtocol] = []
+        private var visibility: NSKeyValueObservation?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            observers.forEach(NotificationCenter.default.removeObserver)
+            observers.removeAll()
+            visibility = nil
+            if let window {
+                visibility = window.observe(\.isVisible, options: [.new]) { [weak self] window, _ in
+                    DispatchQueue.main.async { [weak self, weak window] in
+                        self?.changed?(window?.isVisible == true)
+                    }
+                }
+                for name in [NSWindow.didBecomeKeyNotification, NSWindow.didResignKeyNotification,
+                             NSWindow.willCloseNotification] {
+                    observers.append(NotificationCenter.default.addObserver(forName: name, object: window, queue: .main) { [weak self] notification in
+                        guard let self else { return }
+                        if notification.name == NSWindow.willCloseNotification || notification.name == NSWindow.didResignKeyNotification {
+                            self.changed?(false)
+                        } else {
+                            self.changed?(self.window?.isVisible == true)
+                        }
+                    })
+                }
+            }
+            // Do not publish ObservableObject changes during SwiftUI layout.
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.changed?(self.window?.isVisible == true)
+            }
+        }
+
+        deinit { observers.forEach(NotificationCenter.default.removeObserver) }
     }
 }
 

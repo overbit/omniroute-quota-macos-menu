@@ -22,7 +22,8 @@ struct PopoverView: View {
             } + CGFloat(max(0, group.accounts.count - 1)) * 6 + 8
         }
         let warningHeight: CGFloat = (store.errorMessage == nil && store.refreshWarning == nil) ? 0 : 21
-        return min(425, max(130, 55 + rowHeight + warningHeight))
+        // Reserve 36 points for the mode picker inside the 425-point cap.
+        return min(425 - 36, max(130, 55 + rowHeight + warningHeight))
     }
 
     var body: some View {
@@ -32,18 +33,32 @@ struct PopoverView: View {
             if store.showingSettings {
                 SettingsView(store: store, selectedTheme: $selectedTheme)
             } else {
-                ScrollView(.vertical) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        statusBand
-                        separator
-                        usage
-                    }
+                Picker("View", selection: $store.showingTimeline) {
+                    Text("Usage").tag(false)
+                    Text("Timeline").tag(true)
                 }
-                .frame(height: contentHeight)
+                .pickerStyle(.segmented)
+                .frame(height: 22)
+                .padding(.horizontal, 13)
+                .padding(.vertical, 7)
+                if store.showingTimeline {
+                    RequestTimelineView(snapshot: store.timeline)
+                        .frame(height: 340)
+                } else {
+                    ScrollView(.vertical) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            statusBand
+                            separator
+                            usage
+                        }
+                    }
+                    .frame(height: contentHeight)
+                }
                 separator
                 footer
             }
         }
+        .background(PopoverVisibilityReader { store.popoverVisible = $0 })
         .frame(width: 310)
         .background(palette.background)
         .foregroundStyle(palette.text)

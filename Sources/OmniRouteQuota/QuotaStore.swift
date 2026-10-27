@@ -11,7 +11,26 @@ final class QuotaStore: ObservableObject {
     @Published private(set) var refreshWarning: String?
     @Published private(set) var lastUpdated: Date?
     @Published private(set) var errorMessage: String?
-    @Published var showingSettings = false
+    @Published var showingSettings = false { didSet { updateTimeline() } }
+    @Published var showingTimeline = false { didSet { updateTimeline() } }
+    @Published private(set) var timeline = TimelineSnapshot()
+    var popoverVisible = false { didSet { if oldValue != popoverVisible { updateTimeline() } } }
+    private let timelinePoller = TimelinePoller()
+    private let timelineClient = TimelineClient()
+
+    private func updateTimeline() {
+        guard popoverVisible, showingTimeline, !showingSettings else {
+            timelinePoller.stop()
+            return
+        }
+        timelinePoller.onChange = { [weak self] in self?.timeline = $0 }
+        guard let endpoint = try? OmniRouteEndpoint(address) else { return }
+        let credentials = OmniRouteCredentials(
+            apiKey: apiKey.isEmpty ? LocalCredentials.automaticAPIKey() : apiKey,
+            cliToken: tokenOverride.isEmpty ? LocalCredentials.automaticToken() : tokenOverride)
+        let client = timelineClient
+        timelinePoller.start { try await client.load(from: endpoint, credentials: credentials) }
+    }
     @Published var showDisabledAccounts = UserDefaults.standard.bool(forKey: "showDisabledAccounts") {
         didSet { UserDefaults.standard.set(showDisabledAccounts, forKey: "showDisabledAccounts") }
     }
@@ -127,6 +146,8 @@ final class QuotaStore: ObservableObject {
         let cleanToken = tokenOverride.trimmingCharacters(in: .whitespacesAndNewlines)
         try LocalCredentials.save(cleanKey, account: "apiKey")
         try LocalCredentials.save(cleanToken, account: "cliToken")
+        timelinePoller.stop(clear: true)
+        timeline = TimelineSnapshot()
         self.address = address.trimmingCharacters(in: .whitespacesAndNewlines)
         self.apiKey = cleanKey
         self.tokenOverride = cleanToken

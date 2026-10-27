@@ -52,3 +52,25 @@ The packaged application reuses the official OmniRoute desktop (`icon.icns`, `ic
 ### UI reference
 
 The popover was adapted from OmniRouteTray's MIT-licensed [CSS](https://github.com/zoispag/omniroute-tray/blob/master/src/styles.css) and [usage renderer](https://github.com/zoispag/omniroute-tray/blob/master/src/main.js) using native SwiftUI rather than the upstream Tauri webview. The OLED theme replaces Graphite with a true-black canvas and restrained near-black controls; previous Graphite selections automatically use OLED. All five themes preserve the 310-point compact width, account/bars hierarchy, percentage toggle, and fixed footer, alongside native reorder and visibility controls. Bundled provider marks and license notes are in `Assets/ProviderIcons/`.
+
+### Recent request timeline
+
+Choose **Timeline** in the popover to see proxy-request metadata for the last
+five minutes (up to 100 rows, newest starts first). The app reads OmniRoute's
+`GET /api/usage/call-logs?limit=200` immediately, then waits two seconds after
+each response before polling again. This is live polling, not token streaming.
+Returning to Usage, entering Settings, or closing the popover stops it; saving
+connection settings clears the previous timeline. Quota polling remains independent.
+
+Each row shows provider/model, local start time, status, elapsed/reported duration,
+and an interval on a shared five-minute axis. Active requests grow until completed;
+historical timestamps are interpreted as end times. Empty, authentication-required,
+unsupported-version, and reconnecting states are distinct. After a failed poll,
+last-received rows are labeled stale rather than presented as new activity.
+Authentication failures use the existing Settings recovery path; some OmniRoute
+versions may require dashboard-session authentication that this app does not store.
+
+Timeline data is memory-only. Account identity, request paths, prompts/bodies,
+headers, session tags, debug details, and API-key metadata are neither retained nor
+shown. Redirects are refused, including login redirects. The app does not enable
+server detail logging, generate requests, or change routing settings.
