@@ -34,10 +34,12 @@ OmniRouteTray's Tauri runtime, server supervision, update manager, trends, or co
 
 ## Color and type
 
-- **Graphite** is the default and preserves OmniRouteTray's dark CSS palette:
-  background #1c1c1e, raised #2c2c2e, border/track #38383a,
-  foreground #f5f5f7, muted #a1a1aa. Critical red is slightly brighter to
-  keep small labels readable on raised surfaces.
+- **OLED** replaces Graphite as the default, using true-black #000000 canvas
+  (unlit OLED pixels), near-black #101014 elevated controls, #626270 outlines,
+  and near-white #F6F7FA primary text. Muted gray copy remains legible.
+  Quota bars preserve clear green, amber, and red meaning, with distinct
+  warning hues against both black and raised surfaces. No background gradients
+  or unnecessary illuminated panels are added.
 - **Midnight**: cool navy dark, blue focus accents. **Forest**: muted
   evergreen, verdant focus accents. **Dusk**: deep violet with lavender
   focus accents. **Paper**: warm light surfaces with deep readable text.
@@ -68,12 +70,14 @@ OmniRouteTray's Tauri runtime, server supervision, update manager, trends, or co
   many providers and long account names (middle truncation and hover title).
 - The quota-mode toggle persists across launches.
 - **Settings → Theme** has five immediately selectable, accessible miniature
-  palette previews (Graphite, Midnight, Forest, Dusk, Paper). Selection is
+  palette previews (OLED, Midnight, Forest, Dusk, Paper). Selection is
   persisted using AppStorage("quotaTheme") and propagated via a SwiftUI
   environment palette to every popover/account/quota/settings subview.
   Native toggle/field appearance follows the selected light/dark scheme.
   The status-bar glyph remains a macOS-controlled template image and is
-  not recolored by the popover theme. Existing installations remain Graphite.
+  not recolored by the popover theme. Existing Graphite preferences seamlessly
+  resolve to OLED using the original stored identifier; no preference reset is
+  required.
 - **Menu Bar Icon** settings independently choose **Static / Dynamic**.
   Dynamic supports **All active** (the backward-compatible default) or
   **Custom** selection of provider groups and individual connections.
