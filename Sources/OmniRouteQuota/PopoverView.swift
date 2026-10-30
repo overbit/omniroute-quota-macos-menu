@@ -11,7 +11,9 @@ enum PopoverLayout {
     static let pickerHeight: CGFloat = 36
     static let statusBandHeight: CGFloat = 32
     static let usageBottomPadding: CGFloat = 10
-    static let contentHeight = maximumHeight - headerHeight - footerHeight - pickerHeight - 2
+    static let separatorHeight: CGFloat = 1
+    static let settingsHeight = maximumHeight - headerHeight - separatorHeight
+    static let contentHeight = maximumHeight - headerHeight - footerHeight - pickerHeight - 2 * separatorHeight
 }
 
 /// Compact two-up quota meters with a selectable semantic color palette.
@@ -71,7 +73,10 @@ struct PopoverView: View {
             }
         }
         .background(PopoverVisibilityReader { store.popoverVisible = $0 })
-        .frame(width: 310)
+        // MenuBarExtra anchors its window to the status item. Keep the outer
+        // geometry identical across Usage, Timeline, and Settings so a content
+        // switch never makes the popover jump away from the menu bar.
+        .frame(width: 310, height: PopoverLayout.maximumHeight, alignment: .top)
         .background(palette.background)
         .foregroundStyle(palette.text)
         .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -83,7 +88,7 @@ struct PopoverView: View {
     private var separator: some View {
         Rectangle()
             .fill(palette.border)
-            .frame(height: 1)
+            .frame(height: PopoverLayout.separatorHeight)
     }
 
     private var header: some View {
@@ -782,7 +787,7 @@ private struct SettingsView: View {
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(height: 470)
+        .frame(height: PopoverLayout.settingsHeight)
     }
 
     private func sectionTitle(_ value: String) -> some View {

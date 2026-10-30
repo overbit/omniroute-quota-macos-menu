@@ -109,6 +109,8 @@ final class QuotaCoreTests: XCTestCase {
         XCTAssertFalse(themes.map(\.displayName).contains("Graphite"))
         XCTAssertEqual(QuotaTheme.oled.tokens.background, 0x000000)
         XCTAssertNotEqual(QuotaTheme.oled.tokens.background, QuotaTheme.oled.tokens.raised)
+        XCTAssertEqual(QuotaTheme.paper.tokens.background, 0xF5F7FA)
+        XCTAssertEqual(QuotaTheme.paper.tokens.raised, 0xFFFFFF)
         let priorChoice = try JSONDecoder().decode(QuotaTheme.self, from: Data(#""graphite""#.utf8))
         XCTAssertEqual(priorChoice, .oled)
         XCTAssertNil(QuotaTheme(rawValue: "unknown"))

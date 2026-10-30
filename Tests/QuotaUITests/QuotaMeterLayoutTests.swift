@@ -52,6 +52,20 @@ final class QuotaMeterLayoutTests: XCTestCase {
         }
     }
 
+    func testPopoverKeepsTheSameHeightWhileSwitchingBetweenUsageAndSettings() {
+        let usageHeight = PopoverLayout.headerHeight
+            + 2 * PopoverLayout.separatorHeight
+            + PopoverLayout.pickerHeight
+            + PopoverLayout.contentHeight
+            + PopoverLayout.footerHeight
+        let settingsHeight = PopoverLayout.headerHeight
+            + PopoverLayout.separatorHeight
+            + PopoverLayout.settingsHeight
+
+        XCTAssertEqual(usageHeight, PopoverLayout.maximumHeight)
+        XCTAssertEqual(settingsHeight, PopoverLayout.maximumHeight)
+    }
+
     func testFiveTwoWindowAccountsFitWithinTheExistingUsageViewport() {
         let accountRows = 5 * QuotaMeterLayout.accountHeight(windowCount: 2)
         let worstCaseProviderGaps: CGFloat = 4 * 8

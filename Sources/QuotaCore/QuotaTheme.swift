@@ -50,10 +50,12 @@ public enum QuotaTheme: String, Codable, CaseIterable, Identifiable, Sendable {
                          good: 0x69DBA7, warning: 0xF4C178, bad: 0xFF7C92,
                          accent: 0xC4A1FF)
         case .paper:
-            return .init(background: 0xFAF8F3, raised: 0xEFEBE2, border: 0xD1CAC0,
-                         text: 0x211F1B, muted: 0x5C5851, faint: 0x6C665E,
-                         good: 0x126F3B, warning: 0x985200, bad: 0xB3261E,
-                         accent: 0x365F9A)
+            // A crisp neutral light surface keeps the compact meters distinct
+            // without the muddy beige-on-ivory cast of the earlier palette.
+            return .init(background: 0xF5F7FA, raised: 0xFFFFFF, border: 0xD5DDE8,
+                         text: 0x202938, muted: 0x4B5665, faint: 0x626C7A,
+                         good: 0x176B45, warning: 0x875000, bad: 0xA92532,
+                         accent: 0x315C96)
         }
     }
 }
