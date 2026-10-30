@@ -11,6 +11,7 @@ let package = Package(
     targets: [
         .target(name: "QuotaCore"),
         .executableTarget(name: "OmniRouteQuota", dependencies: ["QuotaCore"]),
-        .testTarget(name: "QuotaCoreTests", dependencies: ["QuotaCore"])
+        .testTarget(name: "QuotaCoreTests", dependencies: ["QuotaCore"]),
+        .testTarget(name: "QuotaUITests", dependencies: ["OmniRouteQuota", "QuotaCore"])
     ]
 )

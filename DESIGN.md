@@ -2,10 +2,11 @@
 
 ## Source of truth
 
-The quota popover replicates the **visual hierarchy, dimensions, spacing, controls,
-and color tokens** of [OmniRouteTray](https://github.com/zoispag/omniroute-tray),
-particularly its \`src/styles.css\`, \`src/main.js\` (\`paintRateLimits()\`), and
-\`index.html\`. The user's supplied OmniRouteTray screenshot is the visual target.
+The quota popover uses the user-approved **Dual-window scan (Option 2)** direction:
+compact, side-by-side quota meters with restrained surfaces and aligned numbers.
+Its native tray baseline comes from
+[OmniRouteTray](https://github.com/zoispag/omniroute-tray); the selected direction
+modernizes the quota presentation without expanding the popover or hiding data.
 
 This remains a standalone, native SwiftUI quota viewer. It does not replicate
 OmniRouteTray's Tauri runtime, server supervision, update manager, trends, or costs.
@@ -17,16 +18,25 @@ OmniRouteTray's Tauri runtime, server supervision, update manager, trends, or co
   Empty providers and unused rows consume no space.
 - Header: green/amber/red 9-point status dot, bold 15-point OmniRoute, 11-point
   running state, on one baseline; 13/16-point padding.
-- Status strip: 11-point muted "active/configured providers · accounts"; no
-  invented cache rate or server version.
-- Usage heading: spaced 10.5-point "USAGE" and a small, outlined, persistent
-  **% left / % used** button.
+- A single 32-point status toolbar combines 10.5-point muted
+  "active/configured providers · accounts" with the persistent **% left / % used**
+  control. The Usage tab already names the view, so no redundant USAGE heading
+  or extra divider consumes list space. No invented cache rate or server version.
 - Each account: inline 16-point brand mark (bundled official/OmniRouteTray SVG),
   11.5-point semibold account name, then compact rows. One account follows
   the next within the provider group, without repeated headings or cards.
-- Each quota row is a four-column grid:
-  **22-point window label / flexible 6-point bar / 34-point percentage /
-  44-point reset countdown**, 7-point gaps and 3-point row separation.
+- An account's first two quota windows share one **29-point meter row**, with
+  a 6-point gap and a 22-point inset aligned to the account name. Each raised cell
+  shows the window label and tabular percentage above a 4-point quota bar and
+  9-point reset countdown. A single window uses a full-width **15-point row**,
+  avoiding extra vertical space for accounts with only one quota window.
+- Further windows remain visible below the pair as full-width 15-point rows;
+  they are never discarded, collapsed, or reordered. Additional rows use a
+  **28-point label / flexible 4-point bar / 34-point percentage / 44-point reset**
+  grid, with 7-point column gaps and 3-point row separation.
+- Account headings remain 16 points tall, separated from the meters by 3 points.
+  Five two-window accounts, even in separate provider groups, fit in the existing
+  maximum-height usage viewport when no refresh warning is present.
 - Groups preserve provider grouping with 8-point spacing; accounts within
   a provider use 6-point separation.
 - Fixed footer: small app name, click-to-open local port chip, three

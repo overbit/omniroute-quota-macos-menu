@@ -4,15 +4,17 @@ import QuotaCore
 import SwiftUI
 
 /// Shared fixed chrome budget; both modes scroll inside a 425-point outer bound.
-private enum PopoverLayout {
+enum PopoverLayout {
     static let maximumHeight: CGFloat = 425
     static let headerHeight: CGFloat = 38
     static let footerHeight: CGFloat = 34
     static let pickerHeight: CGFloat = 36
+    static let statusBandHeight: CGFloat = 32
+    static let usageBottomPadding: CGFloat = 10
     static let contentHeight = maximumHeight - headerHeight - footerHeight - pickerHeight - 2
 }
 
-/// Compact OmniRouteTray layout with a selectable semantic color palette.
+/// Compact two-up quota meters with a selectable semantic color palette.
 struct PopoverView: View {
     @ObservedObject var store: QuotaStore
     @AppStorage("quotaTheme") private var selectedTheme: QuotaTheme = .oled
@@ -26,13 +28,14 @@ struct PopoverView: View {
         guard !groups.isEmpty else { return 130 }
         let rowHeight = groups.reduce(CGFloat(0)) { total, group in
             total + group.accounts.reduce(CGFloat(0)) { part, account in
-                let count = max(1, account.windows.count)
-                return part + 21 + CGFloat(count * 15) + CGFloat(max(0, count - 1)) * 3
-            } + CGFloat(max(0, group.accounts.count - 1)) * 6 + 8
-        }
+                part + QuotaMeterLayout.accountHeight(windowCount: account.windows.count)
+            } + CGFloat(max(0, group.accounts.count - 1)) * 6
+        } + CGFloat(max(0, groups.count - 1)) * 8
         let warningHeight: CGFloat = (store.errorMessage == nil && store.refreshWarning == nil) ? 0 : 21
         // Both modes share the remaining height after fixed chrome and separators.
-        return min(PopoverLayout.contentHeight, max(130, 55 + rowHeight + warningHeight))
+        // A single 32pt status/mode toolbar replaces the redundant USAGE heading.
+        let usageHeight = PopoverLayout.statusBandHeight + PopoverLayout.usageBottomPadding + rowHeight + warningHeight
+        return min(PopoverLayout.contentHeight, max(130, usageHeight))
     }
 
     var body: some View {
@@ -58,7 +61,6 @@ struct PopoverView: View {
                     ScrollView(.vertical) {
                         VStack(alignment: .leading, spacing: 0) {
                             statusBand
-                            separator
                             usage
                         }
                     }
@@ -116,41 +118,35 @@ struct PopoverView: View {
                 Text("·")
                 Text("\(store.accounts.count) accounts")
             }
-            Spacer(minLength: 0)
+            Spacer(minLength: 4)
+            quotaModeButton
         }
-        .font(.system(size: 11))
+        .font(.system(size: 10.5))
         .foregroundStyle(palette.muted)
         .lineLimit(1)
         .padding(.horizontal, 13)
-        .padding(.vertical, 7)
+        .padding(.top, 4)
+        .padding(.bottom, 6)
+    }
+
+    private var quotaModeButton: some View {
+        Button {
+            showUsed.toggle()
+        } label: {
+            Text(showUsed ? "% used" : "% left")
+                .font(.system(size: 10.5, weight: .medium))
+                .foregroundStyle(palette.muted)
+                .frame(width: 58, height: 22)
+                .background(palette.raised, in: RoundedRectangle(cornerRadius: 6))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(palette.border.opacity(0.6), lineWidth: 0.5))
+        }
+        .buttonStyle(.plain)
+        .help("Toggle remaining and used quota")
+        .accessibilityLabel(showUsed ? "Showing percent used. Switch to percent left." : "Showing percent left. Switch to percent used.")
     }
 
     private var usage: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("USAGE")
-                    .font(.system(size: 10.5, weight: .semibold))
-                    .tracking(0.7)
-                    .foregroundStyle(palette.faint)
-                Spacer()
-                Button {
-                    showUsed.toggle()
-                } label: {
-                    Text(showUsed ? "% used" : "% left")
-                        .font(.system(size: 10.5, weight: .medium))
-                        .foregroundStyle(palette.muted)
-                        .frame(minWidth: 49)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 4)
-                        .background(palette.raised, in: RoundedRectangle(cornerRadius: 6))
-                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(palette.border))
-                }
-                .buttonStyle(.plain)
-                .help("Toggle remaining and used quota")
-                .accessibilityLabel(showUsed ? "Showing percent used. Switch to percent left." : "Showing percent left. Switch to percent used.")
-            }
-            .padding(.bottom, 7)
-
             if store.errorMessage != nil && store.lastUpdated != nil {
                 Label("Showing last known quotas", systemImage: "exclamationmark.triangle.fill")
                     .font(.system(size: 10.5))
@@ -182,8 +178,7 @@ struct PopoverView: View {
             }
         }
         .padding(.horizontal, 13)
-        .padding(.top, 8)
-        .padding(.bottom, 10)
+        .padding(.bottom, PopoverLayout.usageBottomPadding)
     }
 
     private var firstLoad: some View {
@@ -304,7 +299,7 @@ struct PopoverView: View {
     }
 }
 
-private struct AccountQuotaRows: View {
+struct AccountQuotaRows: View {
     @Environment(\.trayPalette) private var palette
     let account: QuotaAccount
     let server: String
@@ -317,7 +312,7 @@ private struct AccountQuotaRows: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: QuotaMeterLayout.rowSpacing) {
             HStack(spacing: 6) {
                 ProviderMark(provider: account.provider, server: server)
                 Text(displayName)
@@ -340,6 +335,7 @@ private struct AccountQuotaRows: View {
                         .foregroundStyle(palette.warning)
                 }
             }
+            .frame(height: QuotaMeterLayout.accountHeadingHeight)
             if account.windows.isEmpty {
                 Text(account.active ? "Quota not available" : "No cached quota available")
                     .font(.system(size: 11))
@@ -347,11 +343,8 @@ private struct AccountQuotaRows: View {
                     .padding(.leading, 22)
                     .frame(height: 20, alignment: .leading)
             } else {
-                VStack(spacing: 3) {
-                    ForEach(account.windows) { window in
-                        QuotaGridRow(window: window, showUsed: showUsed, inactive: !account.active)
-                    }
-                }
+                QuotaWindowMeters(windows: account.windows, showUsed: showUsed, inactive: !account.active)
+                    .padding(.leading, 22)
             }
         }
     }
@@ -390,53 +383,6 @@ private struct ProviderMark: View {
         .task(id: "\(server)|\(provider)") {
             icon = await OmniRouteArtwork.providerIcon(provider, server: server)
         }
-    }
-}
-
-private struct QuotaGridRow: View {
-    @Environment(\.trayPalette) private var palette
-    let window: QuotaWindow
-    let showUsed: Bool
-    let inactive: Bool
-
-    private var value: Double { window.displayedPercent(showUsed: showUsed) }
-    private var color: Color {
-        inactive ? palette.muted : palette.quotaColor(window.remainingPercent)
-    }
-
-    var body: some View {
-        HStack(spacing: 7) {
-            Text(window.label)
-                .font(.system(size: 10.5, weight: .semibold))
-                .foregroundStyle(palette.muted)
-                .frame(width: 22, alignment: .leading)
-
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(palette.border)
-                    Capsule()
-                        .fill(color)
-                        .frame(width: geometry.size.width * value / 100)
-                }
-            }
-            .frame(height: 6)
-
-            Text(window.unlimited ? "∞" : "\(window.displayedRoundedPercent(showUsed: showUsed))%")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(color)
-                .monospacedDigit()
-                .frame(width: 34, alignment: .trailing)
-
-            Text(window.resetAt == nil ? "" : window.countdown())
-                .font(.system(size: 10))
-                .foregroundStyle(palette.faint)
-                .monospacedDigit()
-                .frame(width: 44, alignment: .trailing)
-                .help(window.resetAt.map { "Resets \($0.formatted(date: .abbreviated, time: .shortened))" } ?? "Reset time unavailable")
-        }
-        .frame(height: 15)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(window.label): \(window.unlimited ? "unlimited" : "\(window.displayedRoundedPercent(showUsed: showUsed)) percent \(showUsed ? "used" : "remaining")"), resets \(window.countdown())")
     }
 }
 
