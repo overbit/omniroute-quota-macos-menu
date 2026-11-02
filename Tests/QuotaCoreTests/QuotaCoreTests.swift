@@ -97,23 +97,31 @@ final class QuotaCoreTests: XCTestCase {
 
     func testFiveThemeNamesAndPersistence() throws {
         let themes = QuotaTheme.allCases
-        XCTAssertEqual(themes, [.oled, .midnight, .forest, .dusk, .paper])
+        XCTAssertEqual(themes, [.oled, .macOSLight, .macOSDark, .forest, .paper])
         XCTAssertEqual(Set(themes.map(\.displayName)).count, 5)
-        XCTAssertEqual(Set(themes.map(\.tokens.background)).count, 5)
+        XCTAssertEqual(Set(themes.compactMap { $0.tokens?.background }).count, 3)
+        XCTAssertNil(QuotaTheme.macOSLight.tokens)
+        XCTAssertNil(QuotaTheme.macOSDark.tokens)
         XCTAssertTrue(QuotaTheme.paper.isLight)
-        XCTAssertTrue(themes.filter(\.isLight).count == 1)
+        XCTAssertEqual(themes.filter(\.isLight), [.macOSLight, .paper])
         // Legacy Graphite selections automatically resolve to OLED.
         XCTAssertEqual(QuotaTheme(rawValue: "graphite"), .oled)
         XCTAssertEqual(QuotaTheme.oled.rawValue, "graphite")
         XCTAssertEqual(QuotaTheme.oled.displayName, "OLED")
         XCTAssertFalse(themes.map(\.displayName).contains("Graphite"))
-        XCTAssertEqual(QuotaTheme.oled.tokens.background, 0x000000)
-        XCTAssertNotEqual(QuotaTheme.oled.tokens.background, QuotaTheme.oled.tokens.raised)
-        XCTAssertEqual(QuotaTheme.paper.tokens.background, 0xF5F7FA)
-        XCTAssertEqual(QuotaTheme.paper.tokens.raised, 0xFFFFFF)
+        XCTAssertEqual(QuotaTheme.oled.tokens?.background, 0x000000)
+        XCTAssertNotEqual(QuotaTheme.oled.tokens?.background, QuotaTheme.oled.tokens?.raised)
+        XCTAssertEqual(QuotaTheme.paper.tokens?.background, 0xF5F7FA)
+        XCTAssertEqual(QuotaTheme.paper.tokens?.raised, 0xFFFFFF)
         let priorChoice = try JSONDecoder().decode(QuotaTheme.self, from: Data(#""graphite""#.utf8))
         XCTAssertEqual(priorChoice, .oled)
         XCTAssertNil(QuotaTheme(rawValue: "unknown"))
+        for legacy in ["midnight", "dusk"] {
+            XCTAssertEqual(QuotaTheme(rawValue: legacy), .macOSDark)
+            XCTAssertEqual(try JSONDecoder().decode(QuotaTheme.self, from: Data("\"\(legacy)\"".utf8)), .macOSDark)
+        }
+        XCTAssertFalse(themes.map(\.displayName).contains("Midnight"))
+        XCTAssertFalse(themes.map(\.displayName).contains("Dusk"))
 
         for theme in themes {
             let restored = try JSONDecoder().decode(QuotaTheme.self, from: JSONEncoder().encode(theme))
@@ -138,7 +146,7 @@ final class QuotaCoreTests: XCTestCase {
         }
 
         for theme in QuotaTheme.allCases {
-            let colors = theme.tokens
+            guard let colors = theme.tokens else { continue } // Native colors are tested against AppKit on macOS.
             for background in [colors.background, colors.raised] {
                 for foreground in [colors.text, colors.muted, colors.faint,
                                    colors.good, colors.warning, colors.bad, colors.accent] {

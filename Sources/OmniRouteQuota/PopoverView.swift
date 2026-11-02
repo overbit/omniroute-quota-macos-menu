@@ -655,7 +655,7 @@ private struct MenuBarMonitorSettings: View {
 
 /// Five tap targets with accurate palette miniatures; each selection updates
 /// the entire popover immediately and persists through @AppStorage.
-private struct ThemeSelector: View {
+struct ThemeSelector: View {
     @Binding var selection: QuotaTheme
     @Environment(\.trayPalette) private var palette
 
@@ -694,8 +694,9 @@ private struct ThemeSelector: View {
                         Text(option.displayName)
                             .font(.system(size: 9, weight: selection == option ? .semibold : .medium))
                             .foregroundStyle(palette.text)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.center)
+                            .frame(height: 22)
                     }
                     .padding(4)
                     .frame(maxWidth: .infinity)

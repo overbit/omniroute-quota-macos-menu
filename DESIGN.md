@@ -52,15 +52,20 @@ OmniRouteTray's Tauri runtime, server supervision, update manager, trends, or co
   Quota bars preserve clear green, amber, and red meaning, with distinct
   warning hues against both black and raised surfaces. No background gradients
   or unnecessary illuminated panels are added.
-- **Midnight**: cool navy dark, blue focus accents. **Forest**: muted
-  evergreen, verdant focus accents. **Dusk**: deep violet with lavender
-  focus accents. **Paper**: warm light surfaces with deep readable text.
-  Each remaps the same semantic surface, text, border, focus, good, warning,
-  and critical roles, without changing layout or quota calculations.
+- **macOS Light / macOS Dark** replace Midnight and Dusk. They resolve native
+  AppKit window/control backgrounds, labels, separators, and the user's accent
+  color under Aqua / Dark Aqua respectively, rather than hard-coded imitations.
+  Each choice stays explicitly light or dark regardless of the system appearance;
+  its thumbnail resolves under the same appearance as the full popover. Muted,
+  faint, and quota/status text blend toward the native label color only when
+  necessary to retain 4.5:1 contrast on both native surfaces.
+- **Forest** retains its muted evergreen palette and verdant focus accents.
+  **Paper** retains neutral light surfaces and deep readable text. All five
+  choices share semantic roles without changing layout or quota calculations.
 - Quota bar color always expresses remaining quota, even in % used mode.
   Semantic success, warning, and critical colors maintain at least
   4.5:1 contrast against background and elevated surfaces in all five themes.
-  Paper explicitly uses darkened status hues and light native controls.
+  Both macOS Light and Paper use readable status hues and light native controls.
 - SF system fonts; percentages and reset times use tabular numerals.
 - Unavailable values are labeled, not rendered as 100% quota.
 - Native menu-bar mark is a **14-point AppKit template image** with 1× and
@@ -88,14 +93,16 @@ OmniRouteTray's Tauri runtime, server supervision, update manager, trends, or co
   and requires no Save & connect, refresh or restart. It is independent of theme,
   percentage direction, ordering, visibility, cached data and menu-bar monitoring.
 - **Settings → Theme** has five immediately selectable, accessible miniature
-  palette previews (OLED, Midnight, Forest, Dusk, Paper). Selection is
-  persisted using AppStorage("quotaTheme") and propagated via a SwiftUI
+  palette previews (OLED, macOS Light, macOS Dark, Forest, Paper). Native theme
+  captions wrap to two lines rather than shrinking or truncating their names.
+  Selection is persisted using AppStorage("quotaTheme") and propagated via a SwiftUI
   environment palette to every popover/account/quota/settings subview.
   Native toggle/field appearance follows the selected light/dark scheme.
   The status-bar glyph remains a macOS-controlled template image and is
   not recolored by the popover theme. Existing Graphite preferences seamlessly
-  resolve to OLED using the original stored identifier; no preference reset is
-  required.
+  resolve to OLED using the original stored identifier. Saved Midnight and Dusk
+  values resolve to macOS Dark; new native choices save `macos-light` /
+  `macos-dark`. OLED remains the default. No preference reset is required.
 - **Menu Bar Icon** settings independently choose **Static / Dynamic**.
   Dynamic supports **All active** (the backward-compatible default) or
   **Custom** selection of provider groups and individual connections.
