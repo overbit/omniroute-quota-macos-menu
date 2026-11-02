@@ -3,7 +3,7 @@ import AppKit
 import QuotaCore
 import SwiftUI
 
-/// Shared fixed chrome budget; both modes scroll inside a 425-point outer bound.
+/// Fixed chrome around content-fitting Usage, capped alongside Timeline and Settings at 425 points.
 enum PopoverLayout {
     static let maximumHeight: CGFloat = 425
     static let headerHeight: CGFloat = 38
@@ -13,31 +13,41 @@ enum PopoverLayout {
     static let usageBottomPadding: CGFloat = 10
     static let separatorHeight: CGFloat = 1
     static let settingsHeight = maximumHeight - headerHeight - separatorHeight
-    static let contentHeight = maximumHeight - headerHeight - footerHeight - pickerHeight - 2 * separatorHeight
+    static let chromeHeight = headerHeight + footerHeight + pickerHeight + 2 * separatorHeight
+    static let contentHeight = maximumHeight - chromeHeight
+
+    static func usageContentHeight(groups: [QuotaProviderGroup], mode: QuotaLayoutMode,
+                                    showsWarning: Bool) -> CGFloat {
+        let warningHeight: CGFloat = showsWarning ? 21 : 0
+        guard !groups.isEmpty else { return 130 + warningHeight }
+        let rows = groups.reduce(CGFloat(0)) { total, group in
+            total + group.accounts.reduce(CGFloat(0)) { subtotal, account in
+                subtotal + QuotaMeterLayout.accountHeight(windowCount: account.windows.count, mode: mode)
+            } + CGFloat(max(0, group.accounts.count - 1)) * QuotaMeterLayout.accountSpacing(for: mode)
+        } + CGFloat(max(0, groups.count - 1)) * QuotaMeterLayout.providerSpacing(for: mode)
+        return min(contentHeight, statusBandHeight + usageBottomPadding + rows + warningHeight)
+    }
 }
 
-/// Compact two-up quota meters with a selectable semantic color palette.
+/// User-selectable single-row quota layouts with a shared semantic color palette.
 struct PopoverView: View {
     @ObservedObject var store: QuotaStore
     @AppStorage("quotaTheme") private var selectedTheme: QuotaTheme = .oled
 
     private var palette: TrayPalette { selectedTheme.palette }
     @AppStorage("quotaShowUsed") private var showUsed = false
+    @AppStorage(QuotaLayoutMode.storageKey) private var selectedLayout: QuotaLayoutMode = .defaultMode
 
     private var groups: [QuotaProviderGroup] { store.visibleGroups }
 
     private var contentHeight: CGFloat {
-        guard !groups.isEmpty else { return 130 }
-        let rowHeight = groups.reduce(CGFloat(0)) { total, group in
-            total + group.accounts.reduce(CGFloat(0)) { part, account in
-                part + QuotaMeterLayout.accountHeight(windowCount: account.windows.count)
-            } + CGFloat(max(0, group.accounts.count - 1)) * 6
-        } + CGFloat(max(0, groups.count - 1)) * 8
-        let warningHeight: CGFloat = (store.errorMessage == nil && store.refreshWarning == nil) ? 0 : 21
-        // Both modes share the remaining height after fixed chrome and separators.
-        // A single 32pt status/mode toolbar replaces the redundant USAGE heading.
-        let usageHeight = PopoverLayout.statusBandHeight + PopoverLayout.usageBottomPadding + rowHeight + warningHeight
-        return min(PopoverLayout.contentHeight, max(130, usageHeight))
+        PopoverLayout.usageContentHeight(groups: groups, mode: selectedLayout,
+                                         showsWarning: (store.errorMessage != nil && store.lastUpdated != nil) || store.refreshWarning != nil)
+    }
+
+    private var popoverHeight: CGFloat {
+        store.showingSettings || store.showingTimeline
+            ? PopoverLayout.maximumHeight : PopoverLayout.chromeHeight + contentHeight
     }
 
     var body: some View {
@@ -45,7 +55,7 @@ struct PopoverView: View {
             header.frame(height: PopoverLayout.headerHeight)
             separator
             if store.showingSettings {
-                SettingsView(store: store, selectedTheme: $selectedTheme)
+                SettingsView(store: store, selectedTheme: $selectedTheme, selectedLayout: $selectedLayout)
             } else {
                 Picker("View", selection: $store.showingTimeline) {
                     Text("Usage").tag(false)
@@ -73,10 +83,9 @@ struct PopoverView: View {
             }
         }
         .background(PopoverVisibilityReader { store.popoverVisible = $0 })
-        // MenuBarExtra anchors its window to the status item. Keep the outer
-        // geometry identical across Usage, Timeline, and Settings so a content
-        // switch never makes the popover jump away from the menu bar.
-        .frame(width: 310, height: PopoverLayout.maximumHeight, alignment: .top)
+        // Usage follows its actual rows instead of leaving a blank tail below
+        // the footer. Timeline and Settings retain their full scrollable height.
+        .frame(width: 310, height: popoverHeight, alignment: .top)
         .background(palette.background)
         .foregroundStyle(palette.text)
         .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -171,15 +180,7 @@ struct PopoverView: View {
             } else if store.visibleAccounts.isEmpty {
                 emptyState
             } else {
-                LazyVStack(alignment: .leading, spacing: 8) {
-                    ForEach(groups) { group in
-                        VStack(alignment: .leading, spacing: 6) {
-                            ForEach(group.accounts) { account in
-                                AccountQuotaRows(account: account, server: store.address, showUsed: showUsed)
-                            }
-                        }
-                    }
-                }
+                QuotaAccountList(groups: groups, server: store.address, showUsed: showUsed, mode: selectedLayout)
             }
         }
         .padding(.horizontal, 13)
@@ -304,11 +305,86 @@ struct PopoverView: View {
     }
 }
 
+/// Kept separate from ScrollView so native snapshot tests render the actual rows.
+struct QuotaAccountList: View {
+    let groups: [QuotaProviderGroup]
+    let server: String
+    let showUsed: Bool
+    let mode: QuotaLayoutMode
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: QuotaMeterLayout.providerSpacing(for: mode)) {
+            ForEach(groups) { group in
+                VStack(alignment: .leading, spacing: QuotaMeterLayout.accountSpacing(for: mode)) {
+                    ForEach(group.accounts) { account in
+                        AccountQuotaRows(account: account, server: server, showUsed: showUsed, mode: mode)
+                    }
+                }
+            }
+        }
+    }
+}
+
 struct AccountQuotaRows: View {
     @Environment(\.trayPalette) private var palette
     let account: QuotaAccount
     let server: String
     let showUsed: Bool
+    var mode: QuotaLayoutMode = .defaultMode
+
+    var body: some View {
+        switch mode {
+        case .fullWidthRows:
+            VStack(alignment: .leading, spacing: QuotaMeterLayout.headingSpacing) {
+                AccountQuotaIdentity(account: account, server: server)
+                    .frame(height: QuotaMeterLayout.accountHeadingHeight)
+                if account.windows.isEmpty {
+                    Text(account.active ? "Quota not available" : "No cached quota available")
+                        .font(.system(size: 11))
+                        .foregroundStyle(palette.muted)
+                        .padding(.leading, 22)
+                        .frame(height: QuotaMeterLayout.unavailableRowHeight, alignment: .leading)
+                } else {
+                    QuotaWindowMeters(windows: account.windows, showUsed: showUsed, inactive: !account.active)
+                }
+            }
+        case .quotaLedger:
+            VStack(spacing: 0) {
+                if account.windows.isEmpty {
+                    HStack(spacing: 6) {
+                        AccountQuotaIdentity(account: account, server: server, compact: true)
+                        Text(account.active ? "Quota unavailable" : "No cached quota")
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(palette.muted)
+                            .fixedSize()
+                    }
+                    .frame(height: QuotaMeterLayout.ledgerRowHeight)
+                } else {
+                    ForEach(account.windows) { window in
+                        HStack(spacing: 6) {
+                            AccountQuotaIdentity(account: account, server: server, compact: true)
+                            QuotaWindowRow(window: window, showUsed: showUsed, inactive: !account.active,
+                                           showsMeter: false)
+                                .fixedSize(horizontal: true, vertical: false)
+                        }
+                        .frame(height: QuotaMeterLayout.ledgerRowHeight)
+                        .overlay(alignment: .bottom) {
+                            palette.border.opacity(0.2).frame(height: 0.5)
+                        }
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("\(account.providerName), \(account.name), \(window.quotaAccessibilityLabel(showUsed: showUsed))\(account.active ? "" : ", disabled")\(account.isStale ? ", stale" : "")")
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct AccountQuotaIdentity: View {
+    @Environment(\.trayPalette) private var palette
+    let account: QuotaAccount
+    let server: String
+    var compact = false
 
     private var displayName: String {
         let name = account.name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -317,41 +393,31 @@ struct AccountQuotaRows: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: QuotaMeterLayout.rowSpacing) {
-            HStack(spacing: 6) {
-                ProviderMark(provider: account.provider, server: server)
-                Text(displayName)
-                    .font(.system(size: 11.5, weight: .semibold))
-                    .foregroundStyle(account.active ? palette.text : palette.muted)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .help(account.name)
-                Spacer(minLength: 2)
-                if !account.active {
-                    Text("OFF")
-                        .font(.system(size: 9, weight: .semibold))
-                        .tracking(0.35)
-                        .foregroundStyle(palette.faint)
-                        .help("Disabled account, showing cached quota when available")
-                }
-                if account.isStale {
-                    Text("STALE")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(palette.warning)
-                }
+        HStack(spacing: compact ? 4 : 6) {
+            ProviderMark(provider: account.provider, server: server)
+            Text(displayName)
+                .font(.system(size: compact ? 11 : 11.5, weight: .semibold))
+                .foregroundStyle(account.active ? palette.text : palette.muted)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .help("\(account.providerName): \(account.name)")
+            Spacer(minLength: 0)
+            if !account.active {
+                Text("OFF")
+                    .font(.system(size: compact ? 8 : 9, weight: .semibold))
+                    .foregroundStyle(palette.faint)
+                    .fixedSize()
+                    .help("Disabled account, showing cached quota when available")
             }
-            .frame(height: QuotaMeterLayout.accountHeadingHeight)
-            if account.windows.isEmpty {
-                Text(account.active ? "Quota not available" : "No cached quota available")
-                    .font(.system(size: 11))
-                    .foregroundStyle(palette.muted)
-                    .padding(.leading, 22)
-                    .frame(height: 20, alignment: .leading)
-            } else {
-                QuotaWindowMeters(windows: account.windows, showUsed: showUsed, inactive: !account.active)
-                    .padding(.leading, 22)
+            if account.isStale {
+                Text("STALE")
+                    .font(.system(size: compact ? 8 : 9, weight: .semibold))
+                    .foregroundStyle(palette.warning)
+                    .fixedSize()
+                    .help("Showing stale cached quota")
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -650,6 +716,28 @@ private struct ThemeSelector: View {
     }
 }
 
+struct QuotaLayoutSelector: View {
+    @Binding var selection: QuotaLayoutMode
+    @Environment(\.trayPalette) private var palette
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Picker("Quota layout", selection: $selection) {
+                ForEach(QuotaLayoutMode.allCases) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .accessibilityLabel("Quota layout")
+            Text(selection.detail)
+                .font(.system(size: 10.5))
+                .foregroundStyle(palette.muted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
 private struct SettingsView: View {
     @Environment(\.trayPalette) private var palette
     @ObservedObject var store: QuotaStore
@@ -659,10 +747,12 @@ private struct SettingsView: View {
     @State private var saveError: String?
 
     @Binding private var selectedTheme: QuotaTheme
+    @Binding private var selectedLayout: QuotaLayoutMode
 
-    init(store: QuotaStore, selectedTheme: Binding<QuotaTheme>) {
+    init(store: QuotaStore, selectedTheme: Binding<QuotaTheme>, selectedLayout: Binding<QuotaLayoutMode>) {
         self.store = store
         _selectedTheme = selectedTheme
+        _selectedLayout = selectedLayout
         _address = State(initialValue: store.address)
         _apiKey = State(initialValue: store.apiKey)
         _cliToken = State(initialValue: store.tokenOverride)
@@ -688,6 +778,9 @@ private struct SettingsView: View {
 
                 sectionTitle("THEME")
                 ThemeSelector(selection: $selectedTheme)
+
+                sectionTitle("QUOTA LAYOUT")
+                QuotaLayoutSelector(selection: $selectedLayout)
 
                 sectionTitle("CONNECTION")
                 TextField("127.0.0.1:20128", text: $address)

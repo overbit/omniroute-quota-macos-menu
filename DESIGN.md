@@ -2,11 +2,13 @@
 
 ## Source of truth
 
-The quota popover uses the user-approved **Dual-window scan (Option 2)** direction:
-compact, side-by-side quota meters with restrained surfaces and aligned numbers.
-Its native tray baseline comes from
-[OmniRouteTray](https://github.com/zoispag/omniroute-tray); the selected direction
-modernizes the quota presentation without expanding the popover or hiding data.
+The quota popover offers the two user-approved single-row directions:
+**Full-width rows (Option A)** and **Quota ledger (Option C)**. Full-width rows
+is the default; Settings lets each user choose their preferred layout and saves
+it across launches. The unselected inline-account concept (Option B) is not a
+shipping mode. Both retain restrained surfaces, aligned numbers and every quota.
+The native tray baseline comes from
+[OmniRouteTray](https://github.com/zoispag/omniroute-tray).
 
 This remains a standalone, native SwiftUI quota viewer. It does not replicate
 OmniRouteTray's Tauri runtime, server supervision, update manager, trends, or costs.
@@ -22,23 +24,23 @@ OmniRouteTray's Tauri runtime, server supervision, update manager, trends, or co
   "active/configured providers · accounts" with the persistent **% left / % used**
   control. The Usage tab already names the view, so no redundant USAGE heading
   or extra divider consumes list space. No invented cache rate or server version.
-- Each account: inline 16-point brand mark (bundled official/OmniRouteTray SVG),
-  11.5-point semibold account name, then compact rows. One account follows
-  the next within the provider group, without repeated headings or cards.
-- An account's first two quota windows share one **29-point meter row**, with
-  a 6-point gap and a 22-point inset aligned to the account name. Each raised cell
-  shows the window label and tabular percentage above a 4-point quota bar and
-  9-point reset countdown. A single window uses a full-width **15-point row**,
-  avoiding extra vertical space for accounts with only one quota window.
-- Further windows remain visible below the pair as full-width 15-point rows;
-  they are never discarded, collapsed, or reordered. Additional rows use a
-  **28-point label / flexible 4-point bar / 34-point percentage / 44-point reset**
-  grid, with 7-point column gaps and 3-point row separation.
-- Account headings remain 16 points tall, separated from the meters by 3 points.
-  Five two-window accounts, even in separate provider groups, fit in the existing
-  maximum-height usage viewport when no refresh warning is present.
-- Groups preserve provider grouping with 8-point spacing; accounts within
-  a provider use 6-point separation.
+- **Full-width rows:** each account has a 16-point heading with its bundled
+  provider mark, 11.5-point semibold name, and OFF / STALE indicators. After a
+  2-point gap, **every quota gets one 16-point full-width row**. The row uses a
+  36-point window label, flexible 4-point quota bar, 34-point percentage and
+  49-point reset countdown, with 7-point gaps. Bars are not indented or boxed.
+  Accounts have 4-point separation and provider groups have 5-point separation.
+- **Quota ledger:** every **22-point row** repeats provider/account identity,
+  OFF / STALE state, window label, percentage and reset time. There are no bars,
+  separate account headings, blank continuation-name cells, or account/group
+  gaps. A faint horizontal rule separates rows. Identity uses the flexible space;
+  the fixed 24-point window / 34-point percentage / 49-point reset columns stay
+  aligned. Long names truncate in the middle and retain their full hover title.
+- Both layouts preserve quota order, show single and additional windows equally,
+  and render unavailable accounts explicitly when the no-quota filter is off.
+  Five two-window accounts fit the maximum usage viewport in either layout when
+  no warning is present. Sparse Usage content shrinks the actual popover around
+  its rows and footer; Timeline and Settings retain the 425-point maximum height.
 - Fixed footer: small app name, click-to-open local port chip, three
   24-point outlined actions (refresh, open router, settings).
 
@@ -79,6 +81,12 @@ OmniRouteTray's Tauri runtime, server supervision, update manager, trends, or co
 - Clicking the status item opens the popover; the view stays readable with
   many providers and long account names (middle truncation and hover title).
 - The quota-mode toggle persists across launches.
+- **Settings → Quota layout** provides a native segmented choice of
+  **Full-width rows / Quota ledger** with a short description of the current
+  choice. It updates presentation immediately using `AppStorage("quotaLayoutMode")`,
+  defaults to Full-width rows for new/existing installs without a saved choice,
+  and requires no Save & connect, refresh or restart. It is independent of theme,
+  percentage direction, ordering, visibility, cached data and menu-bar monitoring.
 - **Settings → Theme** has five immediately selectable, accessible miniature
   palette previews (OLED, Midnight, Forest, Dusk, Paper). Selection is
   persisted using AppStorage("quotaTheme") and propagated via a SwiftUI

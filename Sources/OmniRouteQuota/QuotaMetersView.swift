@@ -2,122 +2,81 @@
 import QuotaCore
 import SwiftUI
 
-/// Keep the scroll-height estimate in step with the actual compact account rows.
+/// Shared dimensions keep the popover's content-fit estimate in step with its rows.
 enum QuotaMeterLayout {
     static let accountHeadingHeight: CGFloat = 16
-    static let primaryRowHeight: CGFloat = 29
-    static let overflowRowHeight: CGFloat = 15
-    static let rowSpacing: CGFloat = 3
+    static let headingSpacing: CGFloat = 2
+    static let meterRowHeight: CGFloat = 16
+    static let ledgerRowHeight: CGFloat = 22
+    static let unavailableRowHeight: CGFloat = 20
 
-    static func accountHeight(windowCount: Int) -> CGFloat {
-        let metersHeight: CGFloat
-        switch windowCount {
-        case 0: metersHeight = 20
-        case 1: metersHeight = overflowRowHeight
-        default: metersHeight = primaryRowHeight + CGFloat(windowCount - 2) * (overflowRowHeight + rowSpacing)
+    static func accountSpacing(for mode: QuotaLayoutMode) -> CGFloat {
+        mode == .fullWidthRows ? 4 : 0
+    }
+
+    static func providerSpacing(for mode: QuotaLayoutMode) -> CGFloat {
+        mode == .fullWidthRows ? 5 : 0
+    }
+
+    static func accountHeight(windowCount: Int, mode: QuotaLayoutMode = .defaultMode) -> CGFloat {
+        switch mode {
+        case .fullWidthRows:
+            return accountHeadingHeight + headingSpacing
+                + (windowCount == 0 ? unavailableRowHeight : CGFloat(windowCount) * meterRowHeight)
+        case .quotaLedger:
+            return CGFloat(max(1, windowCount)) * ledgerRowHeight
         }
-        return accountHeadingHeight + rowSpacing + metersHeight
     }
 }
 
-/// The first two windows share a row. Additional windows stay visible below it,
-/// in their original order, rather than being truncated or put behind a click.
+/// Every quota window gets its own full-width row, in the original API order.
 struct QuotaWindowMeters: View {
     let windows: [QuotaWindow]
     let showUsed: Bool
     let inactive: Bool
 
-    var primaryWindows: ArraySlice<QuotaWindow> { windows.prefix(2) }
-    var additionalWindows: ArraySlice<QuotaWindow> { windows.dropFirst(2) }
-
     var body: some View {
-        if windows.count == 1, let window = windows.first {
-            // Do not spend two lines on an account with only one quota window.
-            QuotaOverflowRow(window: window, showUsed: showUsed, inactive: inactive)
-        } else {
-            VStack(spacing: QuotaMeterLayout.rowSpacing) {
-                HStack(spacing: 6) {
-                    ForEach(primaryWindows) { window in
-                        QuotaMeterCell(window: window, showUsed: showUsed, inactive: inactive)
-                    }
-                }
-                ForEach(additionalWindows) { window in
-                    QuotaOverflowRow(window: window, showUsed: showUsed, inactive: inactive)
-                }
+        VStack(spacing: 0) {
+            ForEach(windows) { window in
+                QuotaWindowRow(window: window, showUsed: showUsed, inactive: inactive)
             }
         }
     }
 }
 
-private struct QuotaMeterCell: View {
+/// Shared labels, percentage semantics and countdowns for both supported layouts.
+struct QuotaWindowRow: View {
     @Environment(\.trayPalette) private var palette
     let window: QuotaWindow
     let showUsed: Bool
     let inactive: Bool
+    var showsMeter = true
 
     private var color: Color {
         inactive ? palette.muted : palette.quotaColor(window.remainingPercent)
     }
 
     var body: some View {
-        VStack(spacing: 1) {
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(window.label)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(palette.muted)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .help(window.label)
-                Spacer(minLength: 2)
-                QuotaPercentage(window: window, showUsed: showUsed, color: color)
-            }
-            .frame(height: 12)
-
-            HStack(spacing: 4) {
-                QuotaProgressTrack(value: window.displayedPercent(showUsed: showUsed), color: color)
-                QuotaResetTime(window: window, fontSize: 9)
-            }
-            .frame(height: 10)
-        }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
-        .frame(maxWidth: .infinity)
-        .frame(height: QuotaMeterLayout.primaryRowHeight)
-        .background(palette.raised, in: RoundedRectangle(cornerRadius: 5))
-        .overlay(RoundedRectangle(cornerRadius: 5).stroke(palette.border.opacity(0.45), lineWidth: 0.5))
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(window.meterAccessibilityLabel(showUsed: showUsed))
-    }
-}
-
-private struct QuotaOverflowRow: View {
-    @Environment(\.trayPalette) private var palette
-    let window: QuotaWindow
-    let showUsed: Bool
-    let inactive: Bool
-
-    private var color: Color {
-        inactive ? palette.muted : palette.quotaColor(window.remainingPercent)
-    }
-
-    var body: some View {
-        HStack(spacing: 7) {
+        HStack(spacing: showsMeter ? 7 : 5) {
             Text(window.label)
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(palette.muted)
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .frame(width: 28, alignment: .leading)
+                .frame(width: showsMeter ? 36 : 24, alignment: .leading)
                 .help(window.label)
-            QuotaProgressTrack(value: window.displayedPercent(showUsed: showUsed), color: color)
+            if showsMeter {
+                QuotaProgressTrack(value: window.unlimited ? 100 : window.displayedPercent(showUsed: showUsed),
+                                   color: color)
+            }
             QuotaPercentage(window: window, showUsed: showUsed, color: color)
                 .frame(width: 34, alignment: .trailing)
-            QuotaResetTime(window: window, fontSize: 9)
-                .frame(width: 44, alignment: .trailing)
+            QuotaResetTime(window: window)
+                .frame(width: 49, alignment: .trailing)
         }
-        .frame(height: QuotaMeterLayout.overflowRowHeight)
+        .frame(height: showsMeter ? QuotaMeterLayout.meterRowHeight : QuotaMeterLayout.ledgerRowHeight)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(window.meterAccessibilityLabel(showUsed: showUsed))
+        .accessibilityLabel(window.quotaAccessibilityLabel(showUsed: showUsed))
     }
 }
 
@@ -157,11 +116,10 @@ private struct QuotaPercentage: View {
 private struct QuotaResetTime: View {
     @Environment(\.trayPalette) private var palette
     let window: QuotaWindow
-    let fontSize: CGFloat
 
     var body: some View {
         Text(window.countdown())
-            .font(.system(size: fontSize))
+            .font(.system(size: 9.5))
             .foregroundStyle(palette.faint)
             .monospacedDigit()
             .fixedSize()
@@ -170,8 +128,8 @@ private struct QuotaResetTime: View {
     }
 }
 
-private extension QuotaWindow {
-    func meterAccessibilityLabel(showUsed: Bool) -> String {
+extension QuotaWindow {
+    func quotaAccessibilityLabel(showUsed: Bool) -> String {
         let quota = unlimited ? "unlimited" : "\(displayedRoundedPercent(showUsed: showUsed)) percent \(showUsed ? "used" : "remaining")"
         let reset = resetAt == nil ? "reset time unavailable" : "resets \(countdown())"
         return "\(label): \(quota), \(reset)"
