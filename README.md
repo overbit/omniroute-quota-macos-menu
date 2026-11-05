@@ -1,84 +1,154 @@
 # OmniRoute Quotas for macOS
 
-A small, native **macOS 14+ menu-bar app** that shows the remaining quotas for every account connected to [OmniRoute](https://github.com/cheaper-inference/OmniRoute). Open the popover, check your session/weekly/daily limits and reset times, close it. No Dock icon, server supervision, analytics, or extra runtime.
+**Your AI provider quotas, one click away.**
 
-The popover modernizes [OmniRouteTray](https://github.com/zoispag/omniroute-tray)'s compact tray UI: a **310-point popover with five selectable themes**, one-line status header, a combined provider/account status and **% left / % used** toolbar, and a fixed compact footer. Choose **Full-width rows** (Option A, the default) for an account heading followed by one long meter per quota, or **Quota ledger** (Option C) for account, window, percentage and reset on each compact row without bars. Both show every quota in order. Usage fits its content up to 425 points, avoiding an unused blank tail; longer lists scroll while the header and footer stay visible. Provider branding is bundled for offline use. This utility does not supervise OmniRoute or reproduce OmniRouteTray's cost and update features. The **14-point native AppKit OmniRoute status-bar image** supports two persistent modes. **Static** always shows the plain icon, with no quota percentages or warnings. **Dynamic** checks selected account quotas even when the popover is closed: icon only while the lowest remaining quota is 50% or more, and below 50% a compact vertical column with up to three lowest account percentages, ordered lowest first and trailing-aligned to the widest value. The icon and numbers are amber below 50% and red when the lowest is below 20% (including 0%). The default preserves prior behavior (Dynamic / All active). Under **Custom**, choose provider groups or individual accounts, including disabled connections. Missing or unlimited quota data is not treated as zero. Hover the icon to identify the monitored account driving the warning and see the additional displayed percentages. There is no redundant warning triangle. The app bundle uses OmniRoute's original macOS icon; provider logos come from your local OmniRoute server when available.
+A lightweight, native macOS menu-bar companion for [OmniRoute](https://github.com/cheaper-inference/OmniRoute). See how much quota remains across connected accounts, when limits reset, and which account needs your attention—without opening a dashboard.
 
-## Install
+[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-000000?logo=apple&logoColor=white)](https://www.apple.com/macos/)
+[![Swift](https://img.shields.io/badge/Swift-native-F05138?logo=swift&logoColor=white)](Package.swift)
+[![macOS build](https://github.com/overbit/omniroute-quota-macos-menu/actions/workflows/build.yml/badge.svg)](https://github.com/overbit/omniroute-quota-macos-menu/actions/workflows/build.yml)
+[![No dependencies](https://img.shields.io/badge/dependencies-zero-success)](Package.swift)
 
-For normal installation, download the versioned `OmniRouteQuota-vX.Y.Z-macos.zip` from [GitHub Releases](https://github.com/overbit/omniroute-quota-macos-menu/releases) after the first signed release has been published. Extract `OmniRouteQuota.app` and move it to `/Applications`. Release builds use an Apple **Developer ID Application** signature, hardened runtime, notarization, and a stapled ticket. macOS can still display its standard first-launch confirmation, but users should not need to bypass an unidentified-developer block.
+**[Get started](#quick-start)** · **[Explore features](#features)** · **[Settings](#make-it-yours)** · **[How it works](#how-it-works)**
 
-The [macOS CI workflow](https://github.com/overbit/omniroute-quota-macos-menu/actions/workflows/build.yml) is for development/testing only. Its artifacts are **ad-hoc signed and NOT notarized**, and should not be distributed to end users. Never disable Gatekeeper to install a production release. For release setup, signing certificate requirements, GitHub secrets, and version tags, see [RELEASING.md](RELEASING.md).
+> [!NOTE]
+> This is an independent companion app. **OmniRoute must already be running on your Mac.** The app reads its local APIs; it does not install, launch, or manage the server.
 
-Alternatively, build locally with the Xcode Command Line Tools:
+## Why use it?
+
+- **All your quotas in one glance.** Browse provider connections, session/daily/weekly/monthly windows, remaining percentages, and reset countdowns.
+- **Warnings where you look.** A dynamic menu-bar indicator highlights your lowest remaining monitored quotas, even with the popover closed.
+- **One click to check live usage.** Cached data refreshes quietly; a manual refresh asks OmniRoute for fresh supported provider limits.
+- **See recent routing activity.** A five-minute Timeline displays request status and duration without exposing prompts or request bodies.
+- **Made for macOS.** Native SwiftUI, compact layouts, five themes, no Dock icon, and no third-party runtime.
+- **Local and private.** No app analytics or telemetry; optional secrets are stored in Keychain.
+
+## Quick start
+
+### Requirements
+
+- macOS **14 (Sonoma) or newer**
+- A running [OmniRoute](https://github.com/cheaper-inference/OmniRoute) instance on the **same Mac** (default: `http://127.0.0.1:20128`)
+- Xcode Command Line Tools if building from source
+
+### Install
+
+**Signed release (when available):** Download the versioned `OmniRouteQuota-vX.Y.Z-macos.zip` from **[GitHub Releases](https://github.com/overbit/omniroute-quota-macos-menu/releases)**, extract `OmniRouteQuota.app`, and move it to `/Applications`.
+
+> [!IMPORTANT]
+> There is **no published release yet**. For now, use the source-build instructions below. GitHub Actions build artifacts are ad-hoc signed, **not notarized**, and intended for testing rather than distribution. Do not disable Gatekeeper to install a production build.
+
+**Build locally** on your Mac:
 
 ```sh
+git clone https://github.com/overbit/omniroute-quota-macos-menu.git
+cd omniroute-quota-macos-menu
 swift test
 ZIP=1 bash scripts/package-app.sh
 open dist/OmniRouteQuota.app
 ```
 
-## Connect
+The script creates `dist/OmniRouteQuota.app` and a ZIP archive. Local builds use an ad-hoc development signature. See [RELEASING.md](RELEASING.md) for the Developer ID signing and notarization process.
 
-1. Run OmniRoute on the same Mac (default `http://127.0.0.1:20128`). The app **does not start or stop** the OmniRoute server.
-2. Click the OmniRoute icon in the menu bar. Available quota rows are compactly grouped by provider. Open **Settings** to rearrange providers and accounts with the arrow controls; uncheck any provider or account to hide it. Ordering and visibility persist across launches. Use **Reset order** to restore default ordering without changing hidden entries.
-3. **Hide accounts without quota** is on by default. It hides connections with no measurable quota and providers with no visible accounts. Turn it off in Settings to inspect them, including unlimited-only connections. A genuine 0%-remaining quota is never hidden. **Show disabled accounts** is a separate setting.
-4. Under **Settings → Menu Bar Icon**, choose **Static** to keep the plain OmniRoute mark or **Dynamic** for live warnings. Dynamic defaults to **All active** accounts; choose **Custom** to select any combination of provider groups and individual accounts. Checking a provider monitors all its current and future connections, including disabled ones. Checking an individual account monitors only that connection. The selections remain saved when you change modes.
-5. In **Settings → Theme**, select **OLED** (pure black for OLED displays), **macOS Light** or **macOS Dark** (native system appearances), **Forest** (green), or **Paper** (neutral light). The five mini-previews show each theme's background, text, and quota colors; selecting one updates the popover and Settings immediately and saves the choice across restarts. The native themes use macOS surface, label, separator, and accent colors, with quota/status text adjusted only when needed for readable contrast. Saved Midnight or Dusk selections now resolve to macOS Dark. OLED remains the default. The status-bar icon itself still follows the macOS appearance, independently of this setting.
-6. In **Settings → Quota layout**, choose **Full-width rows** or **Quota ledger**. Your choice applies immediately and persists across restarts, independently of the theme and **% left / % used** setting. No Save & connect is required.
-7. If your server uses custom authentication or a different port, use **Settings** to enter the local address, an optional management API key override, or an optional CLI token override. Overrides are stored in macOS Keychain.
+### Connect in seconds
 
-For the usual local OmniRoute setup, the app can derive the CLI management token from the Mac's platform UUID and OmniRoute's `~/.omniroute/cli-token-salt.json` (as OmniRoute itself does). When the management API-key override is empty, it reads only `OMNIROUTE_API_KEY` from `~/.omniroute/.env` on each refresh. The `.env` value is not displayed, logged, or copied into Keychain. A manual API-key override takes precedence. Other provider credentials in `.env` are not used. If the server has a custom `OMNIROUTE_CLI_TOKEN` or `OMNIROUTE_CLI_SALT`, paste an authorized token into Settings. The server address is constrained to `localhost`, `127.0.0.1`, or `::1` to prevent accidentally sending management credentials to a remote host.
+1. Start OmniRoute locally, then launch **OmniRoute Quotas**.
+2. Click the OmniRoute icon in your Mac menu bar to view connected accounts and remaining quota.
+3. If your OmniRoute server uses a custom local port or credentials, open **Settings** and enter the local address and optional token/key overrides.
+4. Choose your layout, theme, and which accounts should influence menu-bar warnings. Preferences are saved automatically.
 
-## Data and refresh
+**Default connection:** `http://127.0.0.1:20128`. Only loopback addresses (`localhost`, `127.0.0.1`, `::1`) are accepted to prevent sending management credentials to remote hosts.
 
-- `GET /api/providers` supplies all configured connections. Disabled accounts are hidden by default and can be shown using the persistent **Show disabled accounts** setting.
-- Automatic polling reads `GET /api/usage/provider-limits`, OmniRoute's **cached** per-connection quota data, every 60 seconds starting at app launch. It never triggers live provider probes.
-- Clicking the footer **Refresh** button explicitly performs a live, server-side quota update for **all supported accounts, including disabled ones**. It invokes OmniRoute's rate-limit-aware `POST /api/usage/provider-limits` for active accounts, then `GET /api/usage/{connectionId}` for each disabled account (serialized to avoid bursts), and finally reloads the persisted cache. It does **not** enable disabled accounts or depend on whether they are hidden in the UI.
-- Manual refresh can take longer and contact upstream providers. Unsupported disabled connections (HTTP 400/404) are skipped. Failed account probes preserve previously cached quotas, with a **Partial refresh** warning where appropriate. The footer displays progress and the last successful check; if the whole refresh fails, previous quotas remain visible. The menu-bar warning follows the independently configured monitoring selection; it can include disabled accounts without enabling them.
-- Standard session/weekly/daily/monthly windows are displayed. Providers that report quotas per model are consolidated by reset time using the **lowest remaining percentage**, so a quota never appears safer than its most constrained model.
-- The default no-quota filter hides accounts with no finite quota data and providers left with no visible accounts. Popover filtering is only visual: it does not remove stored accounts or change which accounts are selected for menu-bar alerts. Turning off the filter shows **Quota not available**, never a fabricated 100%. Disabled accounts can be included separately and are marked **OFF**; cached figures may be stale.
+## Features
 
-No analytics, telemetry, or external network requests are made by this app. The optional management API key is read locally; provider credentials are not used.
+### Keep quotas visible—not another dashboard open
+
+View each configured provider and account in a compact popover. Quota windows display their **remaining percentage** and **time until reset**, with a toggle to switch between **% left** and **% used**.
+
+Two persistent display modes suit different needs:
+
+| Full-width rows (default) | Quota ledger |
+| --- | --- |
+| Account headings with one clear meter per quota | Dense, aligned account/window/percentage/reset rows |
+| Best for scanning colored quota bars | Best for comparing many limits at once |
+
+The popover stays **310 points wide**, grows with its content up to **425 points tall**, and scrolls longer lists while keeping the header and footer in place. Unlimited or missing quotas are labeled as unavailable, not mistaken for full or empty allowance.
+
+### Get a heads-up before a quota runs out
+
+The native menu-bar icon has two modes:
+
+| Mode | Behavior |
+| --- | --- |
+| **Static** | Always shows the plain OmniRoute icon |
+| **Dynamic** (default) | Displays up to three lowest monitored account percentages when the lowest drops below 50% |
+
+Dynamic warnings turn **amber below 50%** and **red below 20%**. Hover to inspect the accounts behind the warning. Monitor **all active** connections or customize provider/account selections—including disabled connections—without changing which accounts appear in the popover.
+
+### See what OmniRoute has been routing
+
+The **Timeline** view shows recent proxy-request metadata from the last **five minutes**, up to 100 rows. Inspect provider/model, status, local time, elapsed/reported duration, and intervals on a shared timeline. It polls only while the view is open; it is **not** a token stream.
+
+Timeline data is held **in memory only**. Prompts, bodies, paths, headers, account identity, and API-key metadata are not displayed or retained. Availability depends on the local OmniRoute version and its authentication configuration.
+
+### Make it yours
+
+- **Five themes:** OLED (true black, default), macOS Light, macOS Dark, Forest, and Paper.
+- **Reorder and hide:** Arrange provider groups and accounts, and choose what appears in Usage.
+- **No-quota filter:** Hide accounts with no measurable quota by default; turn it off to inspect unavailable and unlimited-only entries. A real **0% remaining** quota stays visible.
+- **Disabled accounts:** Optionally show them with an **OFF** label; cached values may be stale.
+- **Independent alerts:** Hiding an account does not automatically exclude it from menu-bar monitoring.
+- **Persistent preferences:** Layout, themes, order, visibility, and warning selections survive relaunches.
+
+## How it works
+
+OmniRoute Quotas is a **read-only companion for routing configuration**, not an OmniRoute replacement. It reads local server data and only asks the server to refresh quotas when you explicitly request it.
+
+| Action | OmniRoute endpoint | Frequency |
+| --- | --- | --- |
+| Load configured connections | `GET /api/providers` | On connection/data reload |
+| Read cached quotas | `GET /api/usage/provider-limits` | Every 60 seconds, starting at launch |
+| Manually refresh active-account quotas | `POST /api/usage/provider-limits` | On Refresh click |
+| Manually refresh disabled-account quotas | `GET /api/usage/{connectionId}` | On Refresh click, sequentially |
+| Read recent request activity | `GET /api/usage/call-logs?limit=200` | While Timeline is open, 2 seconds after each response |
+
+**Automatic polling never triggers live provider probes.** Manual refresh may contact upstream providers through OmniRoute; unsupported disabled connections are skipped and partial failures preserve existing cached figures. Quota windows reported per model are conservatively consolidated using the lowest remaining percentage for matching reset times.
+
+### Privacy and security
+
+- **No telemetry or analytics** in this app, and no outbound connections except to the local OmniRoute server. OmniRoute itself may communicate with providers when you request a manual refresh.
+- **Local-only server addresses** reduce the risk of management credentials reaching an unintended host; redirects are refused for Timeline.
+- **Keychain** stores optional manually entered management API-key and CLI-token overrides.
+- Without a manual management key, the app reads only `OMNIROUTE_API_KEY` from `~/.omniroute/.env` on refresh; it does not display, log, or store that value in Keychain.
+- For standard local OmniRoute setups, the CLI management token can be derived using the Mac platform UUID and `~/.omniroute/cli-token-salt.json`. Custom token/salt setups can use a manual token override.
+- **Disabled accounts are never enabled** by the app, including during manual refresh.
 
 ## Development
 
-The project uses Swift Package Manager without third-party dependencies. `QuotaCore` contains the API client, quota parsing, and percentage/countdown logic, with XCTest coverage. `OmniRouteQuota` contains SwiftUI, Keychain integration, local CLI token derivation, and the menu-bar popover. Core tests can run on Linux; the actual native app must be compiled on macOS. Native SwiftUI tests on macOS verify both quota layouts, saved layout selection, content-fitting heights, and all five themes in both percentage modes. Pixel-content checks recognize the actual rendered percentages so a blank screenshot cannot pass on dimensions alone. To export representative native account snapshots for visual review:
+Built with **SwiftUI + AppKit** and **Swift Package Manager**, with **no third-party package dependencies**.
+
+| Component | Responsibility |
+| --- | --- |
+| `QuotaCore` | Local API client, quota parsing, remaining percentages, countdowns |
+| `OmniRouteQuota` | Native menu bar, popover, Settings, Keychain, local token derivation |
+| `Tests/QuotaCoreTests` | Quota and Timeline behavior |
+| `Tests/QuotaUITests` | Layouts, themes, percentages, and native menu-bar indicator |
+
+Run the test suite with `swift test`. QuotaCore can be tested on Linux, but building and testing the native app requires macOS.
+
+To export native UI snapshots for inspection on a Mac:
 
 ```sh
 QUOTA_UI_SNAPSHOT_DIR=/tmp/omniroute-quota-ui swift test --filter QuotaMeterLayoutTests
 ```
 
-This is an independent companion app, not an official OmniRoute product.
-## Artwork
+For design decisions, see [DESIGN.md](DESIGN.md). For signed distribution and GitHub release automation, see [RELEASING.md](RELEASING.md).
 
-The packaged application reuses the official OmniRoute desktop (`icon.icns`, `icon.png`) and original menu-bar (`tray-icon.png`) images from `electron/assets/` in [cheaper-inference/OmniRoute](https://github.com/cheaper-inference/OmniRoute). For the menu-bar status item it uses a **14-point AppKit template image** with real opaque dot pixels at 1× and 2× resolution, based on OmniRoute's eight-dot ring. A SwiftUI Shape previously produced an invisible status item on some Macs; the AppKit bitmap is verified pixel-by-pixel in CI and adapts to light/dark menu-bar appearance. Their license notice is preserved in `Assets/OmniRoute/LICENSE`. Provider icons are requested only from your running local OmniRoute server at `/providers/{id}.svg`; if no matching image is available, a compact monogram is used. This companion app is not affiliated with or endorsed by OmniRoute.
+## Credits and attribution
 
-### UI reference
+This project is **independent and not affiliated with or endorsed by OmniRoute**.
 
-The popover was adapted from OmniRouteTray's MIT-licensed [CSS](https://github.com/zoispag/omniroute-tray/blob/master/src/styles.css) and [usage renderer](https://github.com/zoispag/omniroute-tray/blob/master/src/main.js) using native SwiftUI rather than the upstream Tauri webview. The OLED theme replaces Graphite with a true-black canvas and restrained near-black controls; previous Graphite selections automatically use OLED. All five themes preserve the 310-point compact width, selected quota layout, percentage toggle, and compact footer, alongside native reorder and visibility controls. Bundled provider marks and license notes are in `Assets/ProviderIcons/`.
+- [OmniRoute](https://github.com/cheaper-inference/OmniRoute): local server integration and original desktop/menu-bar artwork, with notices preserved in [Assets/OmniRoute/LICENSE](Assets/OmniRoute/LICENSE).
+- [OmniRouteTray](https://github.com/zoispag/omniroute-tray): inspiration for the compact tray layout, adapted into native SwiftUI. Provider artwork and associated notices live in `Assets/ProviderIcons/`.
 
-### Recent request timeline
-
-Choose **Timeline** in the popover to see proxy-request metadata for the last
-five minutes (up to 100 rows, newest starts first). The app reads OmniRoute's
-`GET /api/usage/call-logs?limit=200` immediately, then waits two seconds after
-each response before polling again. This is live polling, not token streaming.
-Returning to Usage, entering Settings, or closing the popover stops it; saving
-connection settings also clears the previous timeline. Hidden views discard recent
-rows immediately; a local clock evicts expired metadata even during a stalled poll.
-Settings labels its return button **Back to Timeline** or **Back to Usage**,
-matching the mode you came from; the mode picker is available after returning. Quota polling remains independent.
-
-Each row shows provider/model, local start time, status, elapsed/reported duration,
-and an interval on a shared five-minute axis. Active requests grow until completed;
-historical timestamps are interpreted as end times. Empty, authentication-required,
-unsupported-version, and reconnecting states are distinct. After a failed poll,
-last-received rows are labeled stale rather than presented as new activity.
-Authentication failures use the existing Settings recovery path; some OmniRoute
-versions may require dashboard-session authentication that this app does not store.
-
-Timeline data is memory-only. Account identity, request paths, prompts/bodies,
-headers, session tags, debug details, and API-key metadata are neither retained nor
-shown. Redirects are refused, including login redirects. The app does not enable
-server detail logging, generate requests, or change routing settings.
+OmniRoute Quotas deliberately focuses on viewing limits and recent request activity. It does **not** supervise the server or reproduce OmniRouteTray's cost reporting or update management.
