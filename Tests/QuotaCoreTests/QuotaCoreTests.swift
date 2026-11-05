@@ -304,12 +304,62 @@ final class QuotaCoreTests: XCTestCase {
         let status = QuotaMenuStatus.evaluate(accounts: accounts, hasLoaded: true, connectionUnavailable: false)
         XCTAssertEqual(status.severity, .critical)
         XCTAssertEqual(status.lowestPercent, 8)
+        XCTAssertEqual(status.lowestPercents, [8, 35])
         XCTAssertEqual(status.lowestAccount, "Personal")
         XCTAssertEqual(status.lowestProvider, "Kimi")
         XCTAssertEqual(status.lowAccountCount, 2) // Accounts, not quota windows.
         XCTAssertEqual(status.activeAccountCount, 2)
         XCTAssertEqual(status.measuredAccountCount, 2)
         XCTAssertTrue(status.description.contains("Critical quota: 8%"))
+    }
+
+    func testMenuBarStatusRanksUpToThreeLowestAccounts() {
+        let accounts = [
+            QuotaAccount(id: "a", name: "Fourth", provider: "openai", active: true, windows: [
+                QuotaWindow(id: "week", label: "wk", remainingPercent: 48.9, resetAt: nil)
+            ], isStale: false),
+            QuotaAccount(id: "b", name: "Second", provider: "kimi", active: true, windows: [
+                QuotaWindow(id: "week", label: "wk", remainingPercent: 23.9, resetAt: nil)
+            ], isStale: false),
+            QuotaAccount(id: "c", name: "Lowest", provider: "claude", active: true, windows: [
+                QuotaWindow(id: "session", label: "5h", remainingPercent: 8.9, resetAt: nil),
+                QuotaWindow(id: "week", label: "wk", remainingPercent: 72, resetAt: nil)
+            ], isStale: false),
+            QuotaAccount(id: "d", name: "Third", provider: "opencode", active: true, windows: [
+                QuotaWindow(id: "week", label: "wk", remainingPercent: 35.9, resetAt: nil)
+            ], isStale: false),
+            QuotaAccount(id: "e", name: "Unlimited", provider: "lm-studio", active: true, windows: [
+                QuotaWindow(id: "month", label: "mo", remainingPercent: 0, resetAt: nil, unlimited: true)
+            ], isStale: false)
+        ]
+
+        let status = QuotaMenuStatus.evaluate(accounts: accounts, hasLoaded: true, connectionUnavailable: false)
+        XCTAssertEqual(status.severity, .critical)
+        XCTAssertEqual(status.lowestPercents, [8, 23, 35])
+        XCTAssertEqual(status.lowestPercent, 8)
+        XCTAssertEqual(status.lowestAccount, "Lowest")
+        XCTAssertEqual(status.measuredAccountCount, 4)
+        XCTAssertTrue(status.description.contains("Next lowest quotas: 23%, 35%."))
+    }
+
+    func testMenuBarStatusReturnsOnlyAvailableLowestPercentages() {
+        let account = QuotaAccount(id: "a", name: "Work", provider: "openai", active: true, windows: [
+            QuotaWindow(id: "week", label: "wk", remainingPercent: 52.9, resetAt: nil)
+        ], isStale: false)
+        let status = QuotaMenuStatus.evaluate(accounts: [account], hasLoaded: true, connectionUnavailable: false)
+        XCTAssertEqual(status.lowestPercents, [52])
+        XCTAssertEqual(status.lowestPercent, 52)
+
+        let empty = QuotaMenuStatus.evaluate(accounts: [], hasLoaded: true, connectionUnavailable: false)
+        XCTAssertEqual(empty.lowestPercents, [])
+        XCTAssertNil(empty.lowestPercent)
+
+        var preferences = QuotaMenuPreferences()
+        preferences.mode = .staticIcon
+        let staticStatus = QuotaMenuStatus.evaluate(accounts: [account], hasLoaded: true,
+                                                    connectionUnavailable: false, preferences: preferences)
+        XCTAssertEqual(staticStatus.lowestPercents, [])
+        XCTAssertNil(staticStatus.lowestPercent)
     }
 
     func testMenuBarStatusThresholds() {

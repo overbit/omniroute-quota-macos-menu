@@ -71,9 +71,9 @@ struct PopoverVisibilityReader: NSViewRepresentable {
     }
 }
 
-/// A native template mark in Static mode; in Dynamic mode, the percentage
-/// reports the lowest remaining quota among the chosen providers/accounts.
-private struct MenuBarQuotaIndicator: View {
+/// A native template mark in Static mode; in Dynamic mode, up to three
+/// percentages report the lowest remaining quotas among the chosen accounts.
+struct MenuBarQuotaIndicator: View {
     let status: QuotaMenuStatus
 
     private var tint: Color {
@@ -94,10 +94,16 @@ private struct MenuBarQuotaIndicator: View {
                 .accessibilityHidden(true)
 
             if status.isLow {
-                Text("\(status.lowestPercent ?? 0)%")
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(tint)
+                VStack(alignment: .trailing, spacing: 0) {
+                    ForEach(Array(status.lowestPercents.enumerated()), id: \.offset) { _, percent in
+                        Text("\(percent)%")
+                            .font(.system(size: 5.5, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                            .lineLimit(1)
+                            .fixedSize()
+                    }
+                }
+                .foregroundStyle(tint)
             } else if status.connectionUnavailable {
                 Text("!")
                     .font(.system(size: 9, weight: .bold, design: .rounded))
@@ -108,7 +114,6 @@ private struct MenuBarQuotaIndicator: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .frame(height: 12)
         .fixedSize(horizontal: true, vertical: false)
         .help(status.description)
         .accessibilityElement(children: .ignore)

@@ -75,10 +75,14 @@ OmniRouteTray's Tauri runtime, server supervision, update manager, trends, or co
   system menu-bar scale, with no blurry center or redundant warning triangle.
   The template image automatically contrasts with light/dark menu bars.
   In **Static** mode, show only the neutral icon regardless of quota or
-  network status. **Dynamic** mode shows a compact number and amber mark below
-  50%, red below 20% (including 0%). In Dynamic mode, missing data uses a
-  question mark and connection failures use an exclamation if no low number
-  exists. CI validates opaque pixels for all eight dots at 1× and 2×.
+  network status. Below 50%, **Dynamic** mode shows up to three lowest account
+  percentages in a vertical, lowest-first column with trailing alignment and an
+  intrinsic width set by the widest value. The one-, two-, or three-row column
+  centers beside the mark without a fixed label height. The mark and numbers
+  are amber below 50%, red when the lowest is below 20% (including 0%). In
+  Dynamic mode, missing data uses a question mark and connection failures use
+  an exclamation if no low number exists. CI validates opaque pixels for all
+  eight dots at 1× and 2×.
 
 
 ## Interaction and edge cases

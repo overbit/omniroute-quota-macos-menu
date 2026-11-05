@@ -1,6 +1,6 @@
 import Foundation
 
-/// Worst measurable remaining quota among the configured monitoring selection.
+/// Lowest measurable remaining quotas among the configured monitoring selection.
 /// Unlimited and unavailable quotas do not count as 0% or 100%.
 public struct QuotaMenuStatus: Equatable, Sendable {
     public enum Severity: Equatable, Sendable {
@@ -8,7 +8,7 @@ public struct QuotaMenuStatus: Equatable, Sendable {
     }
 
     public let severity: Severity
-    public let lowestPercent: Int?
+    public let lowestPercents: [Int]
     public let lowestAccount: String?
     public let lowestProvider: String?
     public let lowAccountCount: Int
@@ -18,6 +18,7 @@ public struct QuotaMenuStatus: Equatable, Sendable {
     public let lowestIsStale: Bool
     public let connectionUnavailable: Bool
 
+    public var lowestPercent: Int? { lowestPercents.first }
     public var isLow: Bool { severity == .low || severity == .critical }
 
     public static func evaluate(
@@ -28,7 +29,7 @@ public struct QuotaMenuStatus: Equatable, Sendable {
     ) -> QuotaMenuStatus {
         if preferences.mode == .staticIcon {
             return QuotaMenuStatus(
-                severity: .staticIcon, lowestPercent: nil, lowestAccount: nil,
+                severity: .staticIcon, lowestPercents: [], lowestAccount: nil,
                 lowestProvider: nil, lowAccountCount: 0, activeAccountCount: 0,
                 measuredAccountCount: 0, customSelection: false,
                 lowestIsStale: false, connectionUnavailable: false
@@ -40,7 +41,8 @@ public struct QuotaMenuStatus: Equatable, Sendable {
             guard let remaining = account.lowestRemaining else { return nil }
             return (account: account, remaining: remaining)
         }
-        let worst = measured.min { $0.remaining < $1.remaining }
+        let ranked = measured.sorted { $0.remaining < $1.remaining }
+        let worst = ranked.first
         let severity: Severity
         if let remaining = worst?.remaining {
             if remaining < 20 {
@@ -56,7 +58,7 @@ public struct QuotaMenuStatus: Equatable, Sendable {
 
         return QuotaMenuStatus(
             severity: severity,
-            lowestPercent: worst.map { Int($0.remaining.rounded(.down)) },
+            lowestPercents: ranked.prefix(3).map { Int($0.remaining.rounded(.down)) },
             lowestAccount: worst?.account.name,
             lowestProvider: worst?.account.providerName,
             lowAccountCount: measured.filter { $0.remaining < 50 }.count,
@@ -101,6 +103,10 @@ public struct QuotaMenuStatus: Equatable, Sendable {
         }
 
         var detail = summary
+        if isLow && lowestPercents.count > 1 {
+            let additional = lowestPercents.dropFirst().map { "\($0)%" }.joined(separator: ", ")
+            detail += " Next lowest quotas: \(additional)."
+        }
         if lowAccountCount > 0 {
             detail += " \(lowAccountCount) monitored \(lowAccountCount == 1 ? "account" : "accounts") below 50%."
         }
